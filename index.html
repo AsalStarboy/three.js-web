@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vestas Terbain</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
+        #webgl-output { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 1.5rem; z-index: 1000; flex-direction: column; gap: 1rem;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #3498db; border-radius: 50%;
+            width: 40px; height: 40px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #controls-panel {
+            position: absolute; top: 1rem; right: 1rem;
+            background-color: rgba(30, 41, 59, 0.8); padding: 1rem; border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); z-index: 10;
+            display: flex; flex-direction: column; gap: 1rem; max-width: 250px;
+        }
+        .control-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; color: #cbd5e1; }
+        .control-group input[type="range"] {
+            width: 100%; -webkit-appearance: none; height: 8px; background: #475569;
+            border-radius: 5px; outline: none; transition: opacity .2s;
+        }
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+            border-radius: 50%; background: #3498db; cursor: pointer;
+        }
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%; background: #3498db; cursor: pointer;
+        }
+        .value-display {
+            font-size: 0.875rem; color: #94a3b8; text-align: right; margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading 3D Model...</p>
+    </div>
+    <div id="webgl-output"></div>
+    <div id="controls-panel" class="rounded-lg p-4 bg-gray-800 bg-opacity-80 shadow-lg">
+        <h2 class="text-xl font-bold mb-4 text-white">Controls</h2>
+        <div class="control-group">
+            <label for="light-intensity">Light Intensity:</label>
+            <input type="range" id="light-intensity" min="0" max="2" step="0.01" value="0.7">
+            <div class="value-display" id="light-intensity-value">0.70</div>
+        </div>
+        <div class="control-group">
+            <label for="camera-x">Camera X:</label>
+            <input type="range" id="camera-x" min="-10" max="10" step="0.1" value="0">
+            <div class="value-display" id="camera-x-value">0.0</div>
+        </div>
+        <div class="control-group">
+            <label for="camera-y">Camera Y:</label>
+            <input type="range" id="camera-y" min="-10" max="10" step="0.1" value="2">
+            <div class="value-display" id="camera-y-value">2.0</div>
+        </div>
+        <div class="control-group">
+            <label for="camera-z">Camera Z:</label>
+            <input type="range" id="camera-z" min="-10" max="10" step="0.1" value="5">
+            <div class="value-display" id="camera-z-value">5.0</div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        let scene, camera, renderer, controls;
+        let ambientLight, directionalLight;
+        let bladesModel = null;
+        let bladesPivot = null;
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const container = document.getElementById('webgl-output');
+
+        // UI Elements
+        const lightIntensitySlider = document.getElementById('light-intensity');
+        const lightIntensityValueDisplay = document.getElementById('light-intensity-value');
+        const cameraXSlider = document.getElementById('camera-x');
+        const cameraYSlider = document.getElementById('camera-y');
+        const cameraZSlider = document.getElementById('camera-z');
+        const cameraXValueDisplay = document.getElementById('camera-x-value');
+        const cameraYValueDisplay = document.getElementById('camera-y-value');
+        const cameraZValueDisplay = document.getElementById('camera-z-value');
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a202c);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(
+                parseFloat(cameraXSlider.value),
+                parseFloat(cameraYSlider.value),
+                parseFloat(cameraZSlider.value)
+            );
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Restrict OrbitControls
+            controls.minPolarAngle = 0; // Look from above
+            controls.maxPolarAngle = Math.PI / 2; // Never go below ground
+            controls.minDistance = 5;   // Don't zoom in too close
+            controls.maxDistance = 500;  // Don't zoom out too far
+            controls.target.set(0, 100, 0); // Set this to your windmill base or hub if needed
+            controls.update();
+
+            ambientLight = new THREE.AmbientLight(0xffffff, parseFloat(lightIntensitySlider.value));
+            scene.add(ambientLight);
+
+            directionalLight = new THREE.DirectionalLight(0xffffff, parseFloat(lightIntensitySlider.value));
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            const loader = new THREE.GLTFLoader();
+
+            // Load main windmill model
+            loader.load(
+                'windmillenv.glb',
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(2, 2, 2);
+                    scene.add(model);
+                    loadingOverlay.style.display = 'none';
+                },
+                function (xhr) {
+                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+                },
+                function (error) {
+                    console.error('An error occurred while loading the model:', error);
+                    loadingOverlay.innerHTML = '<p class="text-red-500">Failed to load 3D model.</p>';
+                }
+            );
+
+            // Create a pivot for the blades at the hub position
+            bladesPivot = new THREE.Object3D();
+            bladesPivot.position.set(0, 187, 0); // Adjust to your windmill's hub location
+            scene.add(bladesPivot);
+
+            // Load Blades.glb and add to pivot
+            loader.load(
+                'Blades.glb',
+                function (gltf) {
+                    bladesModel = gltf.scene;
+                    bladesModel.scale.set(2, 2, 2); // Adjust as needed
+                    bladesModel.position.set(0, 0, 0); // Centered on pivot
+                    bladesModel.rotation.set(0, 0, 0); // No initial rotation
+                    bladesPivot.add(bladesModel);
+                },
+                undefined,
+                function (error) {
+                    console.error('An error occurred while loading Blades.glb:', error);
+                }
+            );
+
+            lightIntensitySlider.addEventListener('input', () => {
+                const intensity = parseFloat(lightIntensitySlider.value);
+                ambientLight.intensity = intensity;
+                directionalLight.intensity = intensity;
+                lightIntensityValueDisplay.textContent = intensity.toFixed(2);
+            });
+
+            cameraXSlider.addEventListener('input', updateCameraPosition);
+            cameraYSlider.addEventListener('input', updateCameraPosition);
+            cameraZSlider.addEventListener('input', updateCameraPosition);
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function updateCameraPosition() {
+            camera.position.set(
+                parseFloat(cameraXSlider.value),
+                parseFloat(cameraYSlider.value),
+                parseFloat(cameraZSlider.value)
+            );
+            camera.lookAt(0, 0, 0);
+            cameraXValueDisplay.textContent = parseFloat(cameraXSlider.value).toFixed(1);
+            cameraYValueDisplay.textContent = parseFloat(cameraYSlider.value).toFixed(1);
+            cameraZValueDisplay.textContent = parseFloat(cameraZSlider.value).toFixed(1);
+            controls.update();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Rotate blades if loaded
+            if (bladesPivot) {
+                bladesPivot.rotation.z += 0.02; // Adjust speed as needed
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            init();
+            animate();
+        };
+    </script>
+</body>
+</html>

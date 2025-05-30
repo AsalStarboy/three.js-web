@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vestas Turbine Interactive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
+        #webgl-output { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(7, 10, 200, 0.7); display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 1.5rem; z-index: 1000; flex-direction: column; gap: 1rem;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #3498db; border-radius: 50%;
+            width: 40px; height: 40px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hotspot-label {
+            position: absolute;
+            background: #3498db;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 20;
+            display: none;
+            transition: opacity 0.2s;
+        }
+        .hotspot-popup {
+            position: absolute;
+            background: #fff;
+            color: #222;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            min-width: 260px;
+            z-index: 1001;
+            display: none;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .hotspot-popup h3 { margin-top: 0; }
+        .hotspot-popup .close-btn {
+            position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer;
+        }
+        .hotspot-popup .learn-more-btn {
+            background: #3498db; color: #fff; border: none; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; margin-top: 1rem;
+        }
+        #toggle-bbox-btn {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 2000;
+            background: #222;
+            color: #ffe600;
+            border: none;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+            opacity: 0.85;
+        }
+        #toggle-bbox-btn:hover {
+            opacity: 1;
+            background: #ffe600;
+            color: #222;
+        }
+    </style>
+</head>
+<body>
+    <button id="toggle-bbox-btn">Hide Bounding Box</button>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Vestas Learning...</p>
+    </div>
+    <div id="webgl-output"></div>
+    <!-- Hotspot Popup -->
+    <div id="hotspot-popup" class="hotspot-popup">
+        <button class="close-btn" onclick="document.getElementById('hotspot-popup').style.display='none'">&times;</button>
+        <h3 id="popup-title"></h3>
+        <p id="popup-desc"></p>
+        <button id="popup-learn-btn" class="learn-more-btn">Learn More</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        let scene, camera, renderer, controls;
+        let ambientLight, directionalLight;
+        let bladesModel = null;
+        let bladesPivot = null;
+        let mainModelBox = null; // --- Bounding Box Collision variable
+        let boxHelper = null;    // --- Box3Helper for main model
+        let bladesBoxHelper = null; // --- Box3Helper for blades
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const container = document.getElementById('webgl-output');
+
+        // --- Hotspot Data: Add, duplicate, or edit pointers here ---
+        const hotspots = [
+            {
+                name: "Tarbain Tail",
+                position: { x: 0, y: 198, z: -20 },
+                title: "Tarbain Tail",
+                desc: "This is the tip of the windmill blade. It moves fastest and is critical for energy capture.",
+                url: "https://en.wikipedia.org/wiki/Wind_turbine_design"
+            },
+            {
+                name: "Hub",
+                position: { x: 0, y: 190, z: 0 },
+                title: "Hub",
+                desc: "A wind turbine’s hub height is the distance from the ground to the middle of the turbine’s rotor.",
+                url: "https://en.wikipedia.org/wiki/Pitch_bearing"
+            }
+            // To add a new pointer, just copy and edit one of these objects!
+        ];
+        const hotspotMeshes = [];
+        const hotspotLabels = [];
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a202c);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(200, 0, 300);
+            camera.lookAt(0, 100, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minPolarAngle = 0;
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.minDistance = 5;
+            controls.maxDistance = 500;
+            controls.target.set(0, 100, 0);
+            controls.update();
+
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            const loader = new THREE.GLTFLoader();
+
+            // Load main windmill model
+            loader.load(
+                'windmillenv.glb',
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(2, 2, 2);
+                    scene.add(model);
+                    loadingOverlay.style.display = 'none';
+
+                    // --- Bounding Box Collision ---
+                    mainModelBox = new THREE.Box3().setFromObject(model);
+                    boxHelper = new THREE.Box3Helper(mainModelBox, 0xffff00);
+                    scene.add(boxHelper);
+                },
+                undefined,
+                function (error) {
+                    console.error('An error occurred while loading the model:', error);
+                    loadingOverlay.innerHTML = '<p class="text-red-500">Failed to load 3D model.</p>';
+                }
+            );
+
+            // Create a pivot for the blades at the hub position
+            bladesPivot = new THREE.Object3D();
+            bladesPivot.position.set(0, 187, 0); // Adjust to your windmill's hub location
+            scene.add(bladesPivot);
+
+            // Load Blades.glb and add to pivot
+            loader.load(
+                'Blades.glb',
+                function (gltf) {
+                    bladesModel = gltf.scene;
+                    bladesModel.scale.set(2, 2, 2); // Adjust as needed
+                    bladesModel.position.set(0, 0, 0); // Centered on pivot
+                    bladesModel.rotation.set(0, 0, 0); // No initial rotation
+                    bladesPivot.add(bladesModel);
+
+                    // --- Bounding Box for Blades ---
+                    const bladesBox = new THREE.Box3().setFromObject(bladesModel);
+                    bladesBoxHelper = new THREE.Box3Helper(bladesBox, 0xff00ff); // Magenta color for blades
+                    scene.add(bladesBoxHelper);
+                },
+                undefined,
+                function (error) {
+                    console.error('An error occurred while loading Blades.glb:', error);
+                }
+            );
+
+            // --- Add Hotspots to Scene ---
+            hotspots.forEach((hotspot, idx) => {
+                // Use a Sprite for constant screen size and always on top
+                const map = new THREE.TextureLoader().load(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='28' fill='%233498db' fill-opacity='0.5'/></svg>"
+                );
+                const material = new THREE.SpriteMaterial({ map: map, transparent: true, opacity: 1, depthTest: false });
+                const sprite = new THREE.Sprite(material);
+                sprite.position.set(hotspot.position.x, hotspot.position.y, hotspot.position.z);
+                sprite.scale.set(16, 16, 1); // Adjust size as needed
+                sprite.renderOrder = 999;
+                sprite.userData.hotspotIndex = idx;
+                scene.add(sprite);
+                hotspotMeshes.push(sprite);
+
+                // HTML Label
+                const label = document.createElement('div');
+                label.className = 'hotspot-label';
+                label.innerText = hotspot.name;
+                document.body.appendChild(label);
+                hotspotLabels.push(label);
+            });
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Bounding Box Toggle Button ---
+        let bboxVisible = true;
+        document.getElementById('toggle-bbox-btn').onclick = function () {
+            bboxVisible = !bboxVisible;
+            if (boxHelper) boxHelper.visible = bboxVisible;
+            if (bladesBoxHelper) bladesBoxHelper.visible = bboxVisible;
+            this.textContent = bboxVisible ? "Hide Bounding Box" : "Show Bounding Box";
+        };
+
+        // --- Hotspot Interactivity ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let INTERSECTED = null;
+
+        const popup = document.getElementById('hotspot-popup');
+        const popupTitle = document.getElementById('popup-title');
+        const popupDesc = document.getElementById('popup-desc');
+        const popupLearnBtn = document.getElementById('popup-learn-btn');
+
+        // Attach events after renderer is created
+        function setupHotspotEvents() {
+            renderer.domElement.addEventListener('mousemove', (event) => {
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(hotspotMeshes);
+
+                // Hide all labels by default
+                hotspotLabels.forEach(label => label.style.display = 'none');
+                INTERSECTED = null;
+
+                if (intersects.length > 0) {
+                    const idx = intersects[0].object.userData.hotspotIndex;
+                    INTERSECTED = idx;
+                    // Show label
+                    hotspotLabels[idx].style.display = 'block';
+                    // Position label
+                    const vector = hotspotMeshes[idx].position.clone().project(camera);
+                    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                    hotspotLabels[idx].style.left = `${x}px`;
+                    hotspotLabels[idx].style.top = `${y - 30}px`;
+                }
+            });
+
+            renderer.domElement.addEventListener('mouseleave', () => {
+                hotspotLabels.forEach(label => label.style.display = 'none');
+                INTERSECTED = null;
+            });
+
+            renderer.domElement.addEventListener('click', (event) => {
+                if (INTERSECTED !== null) {
+                    const hotspot = hotspots[INTERSECTED];
+                    popupTitle.innerText = hotspot.title;
+                    popupDesc.innerText = hotspot.desc;
+                    popupLearnBtn.onclick = () => window.open(hotspot.url, '_blank');
+                    popup.style.display = 'block';
+                }
+            });
+        }
+
+        document.querySelector('.close-btn').onclick = () => {
+            popup.style.display = 'none';
+        };
+
+        function updateHotspotLabels() {
+            hotspotMeshes.forEach((mesh, idx) => {
+                if (hotspotLabels[idx].style.display === 'block') {
+                    const vector = mesh.position.clone().project(camera);
+                    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                    hotspotLabels[idx].style.left = `${x}px`;
+                    hotspotLabels[idx].style.top = `${y - 30}px`;
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Rotate blades if loaded
+            if (bladesPivot) {
+                bladesPivot.rotation.z += 0.02;
+            }
+
+            // --- Hotspot fade based on camera distance ---
+            const fadeStart = 80; // Distance at which fading starts (fully visible when closer)
+            const fadeEnd = 200;  // Distance at which pointer is fully invisible
+            hotspotMeshes.forEach((sprite, idx) => {
+                const dist = camera.position.distanceTo(sprite.position);
+                let opacity = 1;
+                if (dist > fadeStart) {
+                    opacity = 1 - (dist - fadeStart) / (fadeEnd - fadeStart);
+                    opacity = Math.max(0, Math.min(1, opacity));
+                }
+                sprite.material.opacity = opacity;
+                // Optionally, hide label if pointer is invisible
+                if (opacity < 0.05) hotspotLabels[idx].style.display = 'none';
+            });
+
+            // --- Example: Camera collision with main model bounding box ---
+            // if (mainModelBox && mainModelBox.containsPoint(camera.position)) {
+            //     // Camera is inside the windmill's bounding box!
+            //     // You can handle collision response here.
+            // }
+
+            renderer.render(scene, camera);
+            updateHotspotLabels();
+        }
+
+        window.onload = function () {
+            init();
+            setupHotspotEvents();
+            animate();
+        };
+    </script>
+</body>
+</html>
