@@ -22,11 +22,11 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .hotspot-label {
             position: absolute;
-            background: #e53e3e;
+            background: #014282;
             color: #fff;
             padding: 2px 8px;
             border-radius: 4px;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             pointer-events: none;
             white-space: nowrap;
             z-index: 20;
@@ -51,9 +51,6 @@
         .hotspot-popup .close-btn {
             position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer;
         }
-        .hotspot-popup .learn-more-btn {
-            background: #3498db; color: #fff; border: none; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; margin-top: 1rem;
-        }
     </style>
 </head>
 <body>
@@ -72,43 +69,38 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
+        // === Hotspot Style Controls ===
+        const HOTSPOT_COLOR = "#014282";      // Marker color (hex code)
+        const HOTSPOT_OPACITY = 0.5;          // 0.5 = 50% transparent
+        const HOTSPOT_SIZE = 13;              // Marker size (was 40, now 3x smaller)
+
         let scene, camera, renderer, controls;
         let ambientLight, directionalLight;
         let bladesModel = null;
         let bladesPivot = null;
         const loadingOverlay = document.getElementById('loading-overlay');
         const container = document.getElementById('webgl-output');
-        const currentCameraId = 1; // For future: change this to switch camera/hotspot sets
+        const currentCameraId = 1;
 
-        // === HOTSPOTS: Easily adjust position/look/move for each ===
-        // All positions are (x, y, z) in scene units.
+        // === HOTSPOTS: Edit positions as needed ===
         const hotspots = [
             {
                 name: "Turbine",
-                // Position this marker at the very top of the turbine
-                position: { x: 0, y: 260, z: 0 }, // adjust y for your model's top
-                cameraLookPosition: { x: 0, y: 260, z: 0 },
-                cameraMovePosition: { x: 150, y: 270, z: 180 }, // adjust for best view
+                position: { x: 0, y: 260, z: 0 },
                 cameraIds: [1],
                 title: "Turbine",
                 desc: "This is the top of the wind turbine.",
             },
             {
                 name: "Tower",
-                // Place this at the base or middle of the tower
                 position: { x: 0, y: 120, z: 0 },
-                cameraLookPosition: { x: 0, y: 120, z: 0 },
-                cameraMovePosition: { x: 120, y: 130, z: 200 },
                 cameraIds: [1],
                 title: "Tower",
                 desc: "This is the tower of the wind turbine.",
             },
             {
                 name: "Car",
-                // Placeholder! Adjust position when you add your car model
                 position: { x: 60, y: 5, z: 90 },
-                cameraLookPosition: { x: 60, y: 5, z: 90 },
-                cameraMovePosition: { x: 80, y: 18, z: 140 },
                 cameraIds: [1],
                 title: "Car",
                 desc: "This is the placeholder for the car model.",
@@ -121,10 +113,9 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x1a202c);
 
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
-            // Set initial camera position for general overview
-            camera.position.set(200, 130, 300);
-            camera.lookAt(0, 100, 0);
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(300, 90, 240);
+            camera.lookAt(0, 130, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -136,26 +127,25 @@
             controls.dampingFactor = 0.05;
             controls.minPolarAngle = 0;
             controls.maxPolarAngle = Math.PI / 2;
-            // Lock zoom: camera can't zoom in/out
-            const lockedDistance = camera.position.distanceTo(new THREE.Vector3(0, 100, 0));
+            const lockedDistance = camera.position.distanceTo(new THREE.Vector3(0, 500, 0));
             controls.minDistance = lockedDistance;
             controls.maxDistance = lockedDistance;
             controls.enableZoom = false;
             controls.enablePan = false;
-            controls.target.set(0, 100, 0);
+            controls.target.set(0, 50, 0);
             controls.update();
 
-            ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             scene.add(ambientLight);
 
-            directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
             directionalLight.position.set(5, 10, 7);
             directionalLight.castShadow = true;
             scene.add(directionalLight);
 
             const loader = new THREE.GLTFLoader();
 
-            // Load main windmill model
+            // Load windmill model
             loader.load(
                 'windmillenv.glb',
                 function (gltf) {
@@ -171,12 +161,11 @@
                 }
             );
 
-            // Create a pivot for the blades at the hub position
+            // Blades
             bladesPivot = new THREE.Object3D();
             bladesPivot.position.set(0, 187, 0);
             scene.add(bladesPivot);
 
-            // Load Blades.glb and add to pivot
             loader.load(
                 'Blades.glb',
                 function (gltf) {
@@ -194,16 +183,16 @@
 
             // --- Add Hotspots to Scene ---
             hotspots.forEach((hotspot, idx) => {
-                if (!hotspot.cameraIds.includes(currentCameraId)) return; // Only show for this camera
+                if (!hotspot.cameraIds.includes(currentCameraId)) return;
 
-                // Sprite marker for the hotspot
+                // Large, visible marker
                 const map = new THREE.TextureLoader().load(
-                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='28' fill='%23e53e3e' fill-opacity='0.7'/></svg>"
+                    `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='28' fill='${encodeURIComponent(HOTSPOT_COLOR)}' fill-opacity='${HOTSPOT_OPACITY}'/></svg>`
                 );
-                const material = new THREE.SpriteMaterial({ map: map, transparent: true, opacity: 1, depthTest: false });
+                const material = new THREE.SpriteMaterial({ map: map, transparent: true, opacity: HOTSPOT_OPACITY, depthTest: false });
                 const sprite = new THREE.Sprite(material);
                 sprite.position.set(hotspot.position.x, hotspot.position.y, hotspot.position.z);
-                sprite.scale.set(16, 16, 1);
+                sprite.scale.set(HOTSPOT_SIZE, HOTSPOT_SIZE, 1);
                 sprite.renderOrder = 999;
                 sprite.userData.hotspotIndex = idx;
                 scene.add(sprite);
@@ -267,9 +256,7 @@
             renderer.domElement.addEventListener('click', (event) => {
                 if (INTERSECTED !== null) {
                     const hotspot = hotspots[INTERSECTED];
-                    animateCameraTo(hotspot.cameraMovePosition, hotspot.cameraLookPosition);
-
-                    // Show popup (optional, remove if you don't need)
+                    // No camera movement, only popup
                     popupTitle.innerText = hotspot.title;
                     popupDesc.innerText = hotspot.desc;
                     popup.style.display = 'block';
@@ -293,27 +280,6 @@
             });
         }
 
-        // Animate camera to new position/target
-        function animateCameraTo(targetPosition, lookAtPosition, duration = 1000) {
-            const startPosition = camera.position.clone();
-            const startLookAt = controls.target.clone();
-            const endPosition = new THREE.Vector3(targetPosition.x, targetPosition.y, targetPosition.z);
-            const endLookAt = new THREE.Vector3(lookAtPosition.x, lookAtPosition.y, lookAtPosition.z);
-            const startTime = performance.now();
-
-            function animate() {
-                const elapsed = performance.now() - startTime;
-                const t = Math.min(elapsed / duration, 1);
-                camera.position.lerpVectors(startPosition, endPosition, t);
-                controls.target.lerpVectors(startLookAt, endLookAt, t);
-                controls.update();
-                if (t < 1) {
-                    requestAnimationFrame(animate);
-                }
-            }
-            animate();
-        }
-
         function animateFn() {
             requestAnimationFrame(animateFn);
             controls.update();
@@ -322,18 +288,9 @@
                 bladesPivot.rotation.z += 0.02;
             }
 
-            // Hotspot fade based on camera distance
-            const fadeStart = 80;
-            const fadeEnd = 200;
+            // Hotspots always visible with set opacity
             hotspotMeshes.forEach((sprite, idx) => {
-                const dist = camera.position.distanceTo(sprite.position);
-                let opacity = 1;
-                if (dist > fadeStart) {
-                    opacity = 1 - (dist - fadeStart) / (fadeEnd - fadeStart);
-                    opacity = Math.max(0, Math.min(1, opacity));
-                }
-                sprite.material.opacity = opacity;
-                if (opacity < 0.05) hotspotLabels[idx].style.display = 'none';
+                sprite.material.opacity = HOTSPOT_OPACITY;
             });
 
             renderer.render(scene, camera);
