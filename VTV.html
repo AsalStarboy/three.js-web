@@ -10,17 +10,17 @@
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0;}
         #webgl-output { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1;}
-        #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #101727; display: flex; justify-content: center; align-items: center; color: white; z-index: 1000; flex-direction: column; gap: 1rem;}
+        #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #101727; display: flex; justify-content: center; align-items: center; color: white; z-index: 99;}
         .welcome-text { font-family: 'Inter', sans-serif; font-weight: 400; font-size: 1em; letter-spacing: 0.2px; color: #e2e8f0; margin-top: 0.5em; opacity: 0.85;}
         .turbine-spinner { width: 60px; height: 60px; position: relative; animation: spinner-rotate 1.1s linear infinite; display: block; margin: 0 auto;}
-        .turbine-blade { position: absolute; left: 50%; top: 50%; width: 44px; height: 6px; background: #fff; transform-origin: 0% 50%; clip-path: polygon(0% 30%, 90% 0%, 100% 50%, 90% 100%, 0% 70%, 12% 50%); box-shadow: 0 0 2px #01428260;}
+        .turbine-blade { position: absolute; left: 50%; top: 50%; width: 44px; height: 6px; background: #fff; transform-origin: 0% 50%; clip-path: polygon(0% 30%, 90% 0%, 100% 50%, 90% 100%, 0% 70%, 10% 50%);}
         .turbine-blade.b1 { transform: rotate(0deg) translateX(0px) translateY(-3px);}
         .turbine-blade.b2 { transform: rotate(120deg) translateX(0px) translateY(-3px);}
         .turbine-blade.b3 { transform: rotate(240deg) translateX(0px) translateY(-3px);}
-        .turbine-spinner-center { position: absolute; width: 16px; height: 16px; left: 50%; top: 50%; transform: translate(-50%,-50%); background: #014282; border-radius: 50%; border: 2px solid #fff; z-index: 2;}
+        .turbine-spinner-center { position: absolute; width: 16px; height: 16px; left: 50%; top: 50%; transform: translate(-50%,-50%); background: #014282; border-radius: 50%; border: 2px solid #fff;}
         @keyframes spinner-rotate { 100% { transform: rotate(360deg);} }
-        .hotspot-label { position: absolute; background: #014282; color: #fff; padding: 2px 8px; border-radius: 0 !important; font-size: 0.95rem; pointer-events: none; white-space: nowrap; z-index: 20; display: none; transition: opacity 0.2s; box-shadow: 0 0 6px #2228;}
-        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; z-index: 1001; display: none; top: 30%; left: 50%; transform: translate(-50%, -50%);}
+        .hotspot-label { position: absolute; background: #014282; color: #fff; padding: 2px 8px; border-radius: 0 !important; font-size: 0.95rem; pointer-events: none; white-space: nowrap; z-index: 20;}
+        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; z-index: 25; left: 50%; top: 20%; transform: translateX(-50%); display: none;}
         .hotspot-popup h3 { margin-top: 0; }
         .hotspot-popup .close-btn { position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer;}
         .back-btn { display:none; position:fixed; top:32px; left:32px; width:48px; height:48px; padding:0; background:none; border:none; z-index:9; cursor:pointer;}
@@ -56,7 +56,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
-    // ===== MATERIAL STATE =====
+    // ====== MATERIAL STATE ======
     // Store material references and originals for toggling opacity (for nacelle, spoiler, transparent_flip)
     let nacelleSpoilerTransparentMats = [];
     let nacelleSpoilerOriginals = [];
@@ -76,18 +76,9 @@
     const container = document.getElementById('webgl-output');
     const fadeOverlay = document.getElementById('fade-overlay');
 
-    // ==== Helper for fade transitions ====
-    function fadeTransition(cb) {
-        fadeOverlay.style.pointerEvents = 'auto';
-        fadeOverlay.style.opacity = 1;
-        setTimeout(() => {
-            cb();
-            setTimeout(() => {
-                fadeOverlay.style.opacity = 0;
-                setTimeout(() => { fadeOverlay.style.pointerEvents = 'none'; }, 500);
-            }, 100);
-        }, 500);
-    }
+    // ---- Sensor size (filmGauge) setting (Default: 35mm) ----
+    // You can change this value as needed; it applies to all cameras.
+    const DEFAULT_SENSOR_SIZE = 35; // mm
 
     // ========== HOTSPOT DATA ==========
     // Hotspot positions are used for camera targets and to place the tower light
@@ -98,52 +89,67 @@
             { name: "Car", position: {x: 25, y: 3, z: 1}, title: "Car", desc: "Go to Service Van.", view: "car" }
         ],
         turbain: [
-            { name: "Drivetrain", position: {x: 5, y: 190, z: -13}, title: "Drivetrain", desc: "Drivetrain details" },
-            { name: "Yaw", position: {x: 2, y: 186, z: -21}, title: "Yaw", desc: "Yaw system details" },
-            { name: "Hydraulics", position: {x: 8, y: 183, z: -18}, title: "Hydraulics", desc: "Hydraulics details" },
+            { name: "Hub", position: {x: 1, y: 188, z: 5}, title: "Hub", desc: "Drivetrain details" },
+            { name: "Yaw", position: {x: 2, y: 183, z: -8}, title: "Yaw", desc: "Yaw system details" },
+            { name: "Hydraulics", position: {x: -3, y: 189, z: -12}, title: "Hydraulics", desc: "Hydraulics details" },
             { name: "Power Generator", position: {x: 0, y: 193, z: -14}, title: "Power Generator", desc: "Power Generator details" },
             { name: "Controls & Safety", position: {x: -7, y: 188, z: -18}, title: "Controls & Safety", desc: "Controls & Safety details" },
-            { name: "Turbine System", position: {x: -4, y: 181, z: -12}, title: "Turbine System", desc: "Turbine System details" },
-            { name: "Power Supply", position: {x: 1, y: 185, z: -5}, title: "Power Supply", desc: "Power Supply details" }
+            { name: "Turbine System", position: {x: -4, y: 185, z: -12}, title: "Turbine System", desc: "Turbine System details" },
+            { name: "Power Supply", position: {x: 1, y: 185, z: -18}, title: "Power Supply", desc: "Power Supply details" }
         ],
         tower: [
-            { name: "Safety", position: {x: 1, y: 44, z: 2}, title: "Safety", desc: "Safety details" },
-            { name: "Turbine Operation", position: {x: -2, y: 46, z: -4}, title: "Turbine Operation", desc: "Turbine Operation details" }
+            { name: "Safety", position: {x: -18, y: 15, z: -25}, title: "Safety", desc: "Safety details" },
+            { name: "Turbine Operation", position: {x: +6, y: 8, z: -4}, title: "Turbine Operation", desc: "Turbine Operation details" }
         ],
         car: [
-            { name: "Scheduled Service", position: {x: 33, y: 6, z: 7}, title: "Scheduled Service", desc: "Scheduled Service info" },
-            { name: "Documentation", position: {x: 31, y: 7, z: 10}, title: "Documentation", desc: "Documentation info" },
-            { name: "Trouble Shooting Tools", position: {x: 30, y: 6, z: 4}, title: "Trouble Shooting Tools", desc: "Trouble Shooting Tools info" }
+            { name: "Scheduled Service", position: {x: 22, y: 1, z: 3}, title: "Scheduled Service", desc: "Scheduled Service info" },
+            { name: "Documentation", position: {x: 20, y: 3, z: 1}, title: "Documentation", desc: "Documentation info" },
+            { name: "Trouble Shooting Tools", position: {x: 30, y: 0, z: 3}, title: "Trouble Shooting Tools", desc: "Trouble Shooting Tools info" }
         ]
     };
     function getHotspotVector(hotspot) { return new THREE.Vector3(hotspot.position.x, hotspot.position.y, hotspot.position.z); }
 
     // ========== CAMERA SETUP ==========
-    // 1. Main Camera - for orbiting the whole scene
-    // 2. Turbain Camera - for orbiting the turbine (nacelle area)
-    // 3. Tower Camera - for pointer-lock FPS-like navigation inside the tower
-    // 4. Car Camera - for orbiting the service car/van
+    // All cameras (main, turbain, tower, car) are set up with their own controls and positions.
+    // SENSOR SIZE (filmGauge) is set for all cameras and can be adjusted easily.
     const cameras = {};
-    cameras.main = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000); // Main view
+    // Main camera: Orbits around the whole turbine. Only allows positive Y (above ground) movement.
+    cameras.main = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
     cameras.main.position.set(300, 90, 240);
+    cameras.main.filmGauge = DEFAULT_SENSOR_SIZE;
 
-    cameras.turbain = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 0.1, 2000); // Turbine view
-    cameras.turbain.position.set(0, 300, 10);
+    // Turbine (nacelle) camera: Focuses on nacelle area.
+    cameras.turbain = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.turbain.position.set(0, 300, 0);
+    cameras.turbain.filmGauge = DEFAULT_SENSOR_SIZE;
 
-    cameras.tower = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000); // Tower view (pointer lock)
+    // Tower camera: Pointer-lock camera for FPS-style navigation inside the tower.
+    cameras.tower = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
     cameras.tower.position.set(0, 8, -5);
+    cameras.tower.filmGauge = DEFAULT_SENSOR_SIZE;
 
-    cameras.car = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 0.1, 2000); // Car/van view
-    cameras.car.position.set(20, -80, 0);
+    // Car/van camera: Orbits around the car, at a 45-degree angle, allows only 180° orbit and no negative Y.
+    cameras.car = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.car.position.set(
+        // Orbit at a 45-degree angle and closer to the van.
+        hotspotData.car[0].position.x + 50, 
+        hotspotData.car[0].position.y + 0, 
+        hotspotData.car[0].position.z + 15
+    );
+    cameras.car.filmGauge = DEFAULT_SENSOR_SIZE;
 
     // ---- Controls ----
+    // Main camera controls: Only allow orbit above ground (no negative Y)
     controls.main = new THREE.OrbitControls(cameras.main, container);
     controls.main.target.copy(getHotspotVector(hotspotData.main[0]));
     controls.main.enableDamping = true;
     controls.main.dampingFactor = 0.05;
     controls.main.enablePan = false;
     controls.main.enableZoom = false;
+    controls.main.minPolarAngle = 0;                // Do not allow camera under the ground
+    controls.main.maxPolarAngle = Math.PI / 2;      // Only above ground
 
+    // Turbine controls: Standard orbit controls
     controls.turbain = new THREE.OrbitControls(cameras.turbain, container);
     controls.turbain.target.copy(getHotspotVector(hotspotData.turbain[0]));
     controls.turbain.enableDamping = true;
@@ -151,22 +157,20 @@
     controls.turbain.enablePan = false;
     controls.turbain.enableZoom = false;
 
-    controls.tower = new THREE.PointerLockControls(cameras.tower, container); // FPS-style for inside the tower
+    // Tower controls: FPS-style inside the tower.
+    controls.tower = new THREE.PointerLockControls(cameras.tower, container);
 
+    // Car camera controls: Only 180° around van, no negative Y, start at 45° angle.
     controls.car = new THREE.OrbitControls(cameras.car, container);
     controls.car.target.copy(getHotspotVector(hotspotData.car[0]));
     controls.car.enableDamping = true;
     controls.car.dampingFactor = 0.05;
     controls.car.enablePan = false;
     controls.car.enableZoom = false;
-    controls.car.minAzimuthAngle = 0;
-    controls.car.maxAzimuthAngle = Math.PI/2;
-    controls.car.minPolarAngle = 0;
-    controls.car.maxPolarAngle = Math.PI/2;
-
-    // ---- Hotspot Sizing ----
-    const HOTSPOT_BASE_SIZE = 3;
-    function getHotspotSize(view) { return view === "main" ? HOTSPOT_BASE_SIZE * 3 : HOTSPOT_BASE_SIZE; }
+    controls.car.minAzimuthAngle = Math.PI / 4;     // Start at 45°
+    controls.car.maxAzimuthAngle = (5 * Math.PI) / 4; // 180° arc from 45° to 225°
+    controls.car.minPolarAngle = 0;                 // Only above ground
+    controls.car.maxPolarAngle = Math.PI / 2;
 
     // ========== MATERIAL TWEAKS ==========
     // Set nacelle/spoiler/transparent_flip opacity (hide/show them)
@@ -184,11 +188,16 @@
             orig.mat.needsUpdate = true;
         });
     }
-    // Set Tower material to double-sided
+    // Set Tower material to double-sided so it's visible from inside and outside
     function makeTowerMaterialDoubleSided() {
         if (towerMaterialRef) {
-            towerMaterialRef.side = THREE.DoubleSide;
+            towerMaterialRef.side = THREE.DoubleSide; // Ensures rendering both faces
             towerMaterialRef.needsUpdate = true;
+            // If you still see through the tower from inside, your mesh normals may be flipped inward.
+            // To fix, you can flip the normals in your 3D software, or do it in code:
+            // child.geometry.computeVertexNormals();
+            // or
+            // child.geometry.scale(-1, 1, 1); // This inverts X normals (use with caution)
         }
     }
 
@@ -294,6 +303,8 @@
         sprite.userData.hotspot = hotspot;
         return sprite;
     }
+    const HOTSPOT_BASE_SIZE = 3;
+    function getHotspotSize(view) { return view === "main" ? HOTSPOT_BASE_SIZE * 3 : HOTSPOT_BASE_SIZE; }
     function showHotspots(view) {
         allHotspotMeshes.forEach(mesh => scene.remove(mesh));
         allHotspotLabels.forEach(label => { if (label && label.remove) label.remove(); });
@@ -335,6 +346,19 @@
                 restoreNacelleSpoilerMaterials();
             }
         });
+    }
+
+    // ==== Helper for fade transitions ====
+    function fadeTransition(cb) {
+        fadeOverlay.style.pointerEvents = 'auto';
+        fadeOverlay.style.opacity = 1;
+        setTimeout(() => {
+            cb();
+            setTimeout(() => {
+                fadeOverlay.style.opacity = 0;
+                setTimeout(() => { fadeOverlay.style.pointerEvents = 'none'; }, 500);
+            }, 100);
+        }, 500);
     }
 
     // --- Hotspot Interactivity ---
