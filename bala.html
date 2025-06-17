@@ -1,90 +1,593 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js Windmill GLB (Module-Based)</title>
-  <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vestas Turbine Interactive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        #webgl-output {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+        #fade-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+        #loading-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background-color: #101727;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        .welcome-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            font-size: 1.2em;
+            letter-spacing: 0.2px;
+            color: #e2e8f0;
+            margin-top: 1em;
+            opacity: 0.85;
+            text-align: center;
+        }
+        .turbine-spinner {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            animation: spinner-rotate 1.1s linear infinite;
+            display: block;
+            margin: 0 auto;
+        }
+        .turbine-blade {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 44px; height: 6px;
+            background: #fff;
+            transform-origin: 0% 50%;
+            clip-path: polygon(0% 30%, 90% 0%, 100% 50%, 90% 100%, 0% 70%, 10% 50%);
+            border-radius: 3px;
+        }
+        .turbine-blade.b1 { transform: rotate(0deg) translateX(0px) translateY(-3px);}
+        .turbine-blade.b2 { transform: rotate(120deg) translateX(0px) translateY(-3px);}
+        .turbine-blade.b3 { transform: rotate(240deg) translateX(0px) translateY(-3px);}
+        .turbine-spinner-center {
+            position: absolute;
+            width: 16px; height: 16px;
+            left: 50%; top: 50%;
+            transform: translate(-50%,-50%);
+            background: #014282;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+        @keyframes spinner-rotate { 100% { transform: rotate(360deg);} }
+        .hotspot-label {
+            position: absolute;
+            background: #014282;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 0 !important;
+            font-size: 0.95rem;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 2000;
+            top: 0; left: 0;
+            transform: translate(-50%, -100%);
+        }
+        .hotspot-popup {
+            position: absolute;
+            background: #fff;
+            color: #222;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            min-width: 260px;
+            max-width: 90vw;
+            max-height: 80vh;
+            z-index: 2001;
+            display: none;
+            overflow: auto;
+            transition: opacity 0.2s;
+        }
+        .hotspot-popup h3 {
+            margin-top: 0;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .hotspot-popup .close-btn {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        .back-btn {
+            display:none;
+            position:fixed;
+            top:32px;
+            left:32px;
+            width:48px;
+            height:48px;
+            padding:0;
+            background:none;
+            border:none;
+            z-index:9;
+            cursor:pointer;
+        }
+        .back-btn svg {
+            display:block;
+            width:100%;
+            height:100%;
+        }
+        @media (max-width: 600px) {
+            .hotspot-popup {
+                min-width: 160px;
+                padding: 1em 0.8em 0.6em 0.8em;
+            }
+            .welcome-text {
+                font-size: 1em;
+            }
+        }
+    </style>
 </head>
 <body>
-<script type="module">
-  // Import necessary Three.js modules from CDN (ESM version)
-  import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-  import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
-  import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-
-  // Basic setup: scene, camera, renderer
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 2, 5); // Position camera
-
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true; // Enable shadows
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High quality soft shadows
-  document.body.appendChild(renderer.domElement);
-
-  // OrbitControls allow user interaction with the scene
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;        // Smooth movement
-  controls.dampingFactor = 0.05;
-  controls.screenSpacePanning = false; // Pan orthogonal to camera
-  controls.minDistance = 1;            // How close you can zoom in
-  controls.maxDistance = 50;           // How far you can zoom out
-  controls.maxPolarAngle = Math.PI / 2; // Limit vertical rotation to avoid flipping
-
-  // Add lighting to the scene
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-  dirLight.position.set(5, 10, 7.5);
-  dirLight.castShadow = true; // Enable shadows from directional light
-  dirLight.shadow.mapSize.width = 2048; // Shadow quality
-  dirLight.shadow.mapSize.height = 2048;
-  dirLight.shadow.camera.near = 0.5;
-  dirLight.shadow.camera.far = 50;
-  scene.add(dirLight);
-
-  const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-  pointLight.position.set(0, 5, 5);
-  pointLight.castShadow = true; // Enable shadows from point light
-  pointLight.shadow.mapSize.width = 1024;
-  pointLight.shadow.mapSize.height = 1024;
-  scene.add(pointLight);
-
-  // Load the GLB model
-  const loader = new GLTFLoader();
-  loader.load('windmillenv.glb',
-    function (gltf) {
-      gltf.scene.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-      scene.add(gltf.scene);
-    },
-    undefined,
-    function (error) {
-      console.error('An error occurred loading the GLB model:', error);
+    <div id="fade-overlay"></div>
+    <div id="loading-overlay">
+        <div class="turbine-spinner" id="turbineSpinner">
+            <div class="turbine-blade b1"></div>
+            <div class="turbine-blade b2"></div>
+            <div class="turbine-blade b3"></div>
+            <div class="turbine-spinner-center"></div>
+        </div>
+        <p class="welcome-text">Welcome to Turbine Tour</p>
+    </div>
+    <div id="webgl-output"></div>
+    <div id="hotspot-popup" class="hotspot-popup">
+        <button class="close-btn" onclick="document.getElementById('hotspot-popup').style.display='none'">&times;</button>
+        <h3 id="popup-title"></h3>
+        <p id="popup-desc"></p>
+        <button id="explore-btn" class="bg-blue-600 text-white px-3 py-1 rounded mt-2">Explore</button>
+    </div>
+    <button id="back-btn" class="back-btn" title="Back to main">
+        <svg viewBox="0 0 48 48">
+            <rect x="0" y="0" width="48" height="48" fill="#014282"/>
+            <polyline points="30,16 20,24 30,32" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+    // ====== MATERIAL STATE ======
+    let envTransparentMats = [];
+    let envOriginals = [];
+    let bladesTransparentMats = [];
+    let bladesOriginals = [];
+    let towerMaterialRef = null;
+    // ========== CAMERA, CONTROLS, SCENE, RENDERER ==============
+    let scene, camera, renderer;
+    let controls = {};
+    let activeView = "main";
+    let allHotspotMeshes = [];
+    let allHotspotLabels = [];
+    let bladesModel = null, bladesPivot = null;
+    let towerPointLight = null;
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const container = document.getElementById('webgl-output');
+    const fadeOverlay = document.getElementById('fade-overlay');
+    const popup = document.getElementById('hotspot-popup');
+    const popupTitle = document.getElementById('popup-title');
+    const popupDesc = document.getElementById('popup-desc');
+    const exploreBtn = document.getElementById('explore-btn');
+    const DEFAULT_SENSOR_SIZE = 35; // mm
+    // ========== HOTSPOT DATA ==========
+    const hotspotData = {
+        main: [
+            { name: "Turbine", position: {x: 0, y: 187, z: -10}, title: "Turbine", desc: "Go in-depth inside the Turbine.", view: "turbain" },
+            { name: "Tower", position: {x: 0, y: 10, z: 0}, title: "Tower", desc: "Go in-depth inside the Tower.", view: "tower" },
+            { name: "Car", position: {x: 25, y: 3, z: 1}, title: "Car", desc: "Go to Service Van.", view: "car" }
+        ],
+        turbain: [
+            { name: "Hub", position: {x: 1, y: 188, z: 5}, title: "Hub", desc: "Drivetrain details" },
+            { name: "Yaw", position: {x: 2, y: 183, z: -8}, title: "Yaw", desc: "Yaw system details" },
+            { name: "Hydraulics", position: {x: -3, y: 189, z: -12}, title: "Hydraulics", desc: "Hydraulics details" },
+            { name: "Power Generator", position: {x: 0, y: 193, z: -14}, title: "Power Generator", desc: "Power Generator details" },
+            { name: "Controls & Safety", position: {x: -7, y: 188, z: -18}, title: "Controls & Safety", desc: "Controls & Safety details" },
+            { name: "Turbine System", position: {x: -4, y: 185, z: -12}, title: "Turbine System", desc: "Turbine System details" },
+            { name: "Power Supply", position: {x: 1, y: 185, z: -18}, title: "Power Supply", desc: "Power Supply details" }
+        ],
+        tower: [
+            { name: "Safety", position: {x: -18, y: 15, z: -25}, title: "Safety", desc: "Safety details" },
+            { name: "Turbine Operation", position: {x: +6, y: 8, z: -4}, title: "Turbine Operation", desc: "Turbine Operation details" }
+        ],
+        car: [
+            { name: "Scheduled Service", position: {x: 22, y: 1, z: 3}, title: "Scheduled Service", desc: "Scheduled Service info" },
+            { name: "Documentation", position: {x: 20, y: 3, z: 1}, title: "Documentation", desc: "Documentation info" },
+            { name: "Trouble Shooting Tools", position: {x: 30, y: 0, z: 3}, title: "Trouble Shooting Tools", desc: "Trouble Shooting Tools info" }
+        ]
+    };
+    function getHotspotVector(hotspot) { return new THREE.Vector3(hotspot.position.x, hotspot.position.y, hotspot.position.z); }
+    // ========== CAMERA SETUP ==========
+    const cameras = {};
+    cameras.main = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.main.position.set(300, 90, 240);
+    cameras.main.filmGauge = DEFAULT_SENSOR_SIZE;
+    cameras.turbain = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.turbain.position.set(0, 300, 0);
+    cameras.turbain.filmGauge = DEFAULT_SENSOR_SIZE;
+    cameras.tower = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.tower.position.set(0, 8, -5);
+    cameras.tower.filmGauge = DEFAULT_SENSOR_SIZE;
+    cameras.car = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.car.position.set(
+        hotspotData.car[0].position.x + 50,
+        hotspotData.car[0].position.y + 0,
+        hotspotData.car[0].position.z + 15
+    );
+    cameras.car.filmGauge = DEFAULT_SENSOR_SIZE;
+    controls.main = new THREE.OrbitControls(cameras.main, container);
+    controls.main.target.copy(getHotspotVector(hotspotData.main[0]));
+    controls.main.enableDamping = true;
+    controls.main.dampingFactor = 0.05;
+    controls.main.enablePan = false;
+    controls.main.enableZoom = false;
+    controls.main.minPolarAngle = 0;
+    controls.main.maxPolarAngle = Math.PI / 2;
+    controls.turbain = new THREE.OrbitControls(cameras.turbain, container);
+    controls.turbain.target.copy(getHotspotVector(hotspotData.turbain[0]));
+    controls.turbain.enableDamping = true;
+    controls.turbain.dampingFactor = 0.05;
+    controls.turbain.enablePan = false;
+    controls.turbain.enableZoom = false;
+    controls.tower = new THREE.PointerLockControls(cameras.tower, container);
+    controls.car = new THREE.OrbitControls(cameras.car, container);
+    controls.car.target.copy(getHotspotVector(hotspotData.car[0]));
+    controls.car.enableDamping = true;
+    controls.car.dampingFactor = 0.05;
+    controls.car.enablePan = false;
+    controls.car.enableZoom = false;
+    controls.car.minAzimuthAngle = Math.PI / 4;
+    controls.car.maxAzimuthAngle = (5 * Math.PI) / 4;
+    controls.car.minPolarAngle = 0;
+    controls.car.maxPolarAngle = Math.PI / 2;
+    // ========== MATERIAL TWEAKS ==========
+    function setEnvMaterialsOpacity(alpha) {
+        envTransparentMats.forEach(mat => {
+            mat.transparent = true;
+            mat.opacity = alpha;
+            mat.needsUpdate = true;
+        });
     }
-  );
-
-  // Handle resizing
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  // Animation loop
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-</script>
+    function restoreEnvMaterials() {
+        envOriginals.forEach(orig => {
+            orig.mat.opacity = orig.opacity;
+            orig.mat.transparent = orig.transparent;
+            orig.mat.needsUpdate = true;
+        });
+    }
+    function setBladesMaterialsOpacity(alpha) {
+        bladesTransparentMats.forEach(mat => {
+            mat.transparent = true;
+            mat.opacity = alpha;
+            mat.needsUpdate = true;
+        });
+    }
+    function restoreBladesMaterials() {
+        bladesOriginals.forEach(orig => {
+            orig.mat.opacity = orig.opacity;
+            orig.mat.transparent = orig.transparent;
+            orig.mat.needsUpdate = true;
+        });
+    }
+    function makeTowerMaterialDoubleSided() {
+        if (towerMaterialRef) {
+            towerMaterialRef.side = THREE.DoubleSide;
+            towerMaterialRef.needsUpdate = true;
+        }
+    }
+    // ========== INIT ==========
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a202c);
+        camera = cameras.main;
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        // ===== WINDMILLENV.GLB MATERIALS =====
+        const envMatNames = [
+            "Nacelle_outershell",
+            "spoiler_outer",
+            "Transparent_flip",
+            "Nacelle",
+            "Skeleton",
+            "Red Emmition"
+        ];
+        const envMeshNames = [
+            "MatChangeGroup11_Spoiler",
+            "MatChangeGroup5_Skeleton"
+        ];
+        const loader = new THREE.GLTFLoader();
+        loader.load('windmillenv.glb', function (gltf) {
+            const model = gltf.scene;
+            model.scale.set(2, 2, 2);
+            scene.add(model);
+            envTransparentMats = [];
+            envOriginals = [];
+            model.traverse(function(child) {
+                if (child.isMesh) {
+                    let materials = Array.isArray(child.material) ? child.material : [child.material];
+                    materials.forEach(mat => {
+                        if (mat && envMatNames.includes(mat.name)) {
+                            envTransparentMats.push(mat);
+                            envOriginals.push({
+                                mat: mat,
+                                opacity: mat.opacity,
+                                transparent: mat.transparent
+                            });
+                        }
+                    });
+                    if (envMeshNames.includes(child.name)) {
+                        let materials2 = Array.isArray(child.material) ? child.material : [child.material];
+                        materials2.forEach(mat => {
+                            if (mat) {
+                                envTransparentMats.push(mat);
+                                envOriginals.push({
+                                    mat: mat,
+                                    opacity: mat.opacity,
+                                    transparent: mat.transparent
+                                });
+                            }
+                        });
+                    }
+                    if (child.name && child.name.toLowerCase().includes("tower")) {
+                        let towerMats = Array.isArray(child.material) ? child.material : [child.material];
+                        towerMats.forEach(mat => {
+                            if (mat && !towerMaterialRef) {
+                                towerMaterialRef = mat;
+                                makeTowerMaterialDoubleSided();
+                            }
+                        });
+                    }
+                }
+            });
+            loadingOverlay.style.display = 'none';
+        });
+        // ===== BLADES.GLB MATERIALS =====
+        bladesPivot = new THREE.Object3D();
+        bladesPivot.position.set(0, 187, 0);
+        scene.add(bladesPivot);
+        loader.load('Blades.glb', function (gltf) {
+            bladesModel = gltf.scene;
+            bladesModel.scale.set(2, 2, 2);
+            bladesPivot.add(bladesModel);
+            bladesTransparentMats = [];
+            bladesOriginals = [];
+            // DIVE DEEP into "MatChangeGroup12_HubCover" only
+            bladesModel.traverse(function(child) {
+                // Find the mesh named "MatChangeGroup12_HubCover"
+                if (child.isMesh && child.name === "MatChangeGroup12_HubCover") {
+                    let materials = Array.isArray(child.material) ? child.material : [child.material];
+                    materials.forEach(mat => {
+                        // Use new material names: "Hub_Blade1", "Transparent_flip"
+                        if (mat && (
+                            mat.name === "Hub_Blade1" ||
+                            mat.name === "Transparent_flip"
+                        )) {
+                            bladesTransparentMats.push(mat);
+                            bladesOriginals.push({
+                                mat: mat,
+                                opacity: mat.opacity,
+                                transparent: mat.transparent
+                            });
+                        }
+                    });
+                }
+            });
+        });
+        showHotspots("main");
+        window.addEventListener('resize', onWindowResize, false);
+        container.addEventListener('click', function() {
+            if (activeView === "tower" && !controls.tower.isLocked) controls.tower.lock();
+        });
+    }
+    function onWindowResize() {
+        for (let k in cameras) {
+            cameras[k].aspect = window.innerWidth / window.innerHeight;
+            cameras[k].updateProjectionMatrix();
+        }
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    function createHotspotMesh(hotspot, idx) {
+        const map = new THREE.TextureLoader().load(
+            `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='28' fill='${encodeURIComponent("#014282")}' fill-opacity='0.8'/></svg>`
+        );
+        const mat = new THREE.SpriteMaterial({ map: map, transparent: true, opacity: 0.5, depthTest: false });
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.set(hotspot.position.x, hotspot.position.y, hotspot.position.z);
+        let size = getHotspotSize(activeView);
+        sprite.scale.set(size, size, 1);
+        sprite.renderOrder = 999;
+        sprite.userData.hotspotIndex = idx;
+        sprite.userData.hotspot = hotspot;
+        return sprite;
+    }
+    const HOTSPOT_BASE_SIZE = 3;
+    function getHotspotSize(view) { return view === "main" ? HOTSPOT_BASE_SIZE * 3 : HOTSPOT_BASE_SIZE; }
+    function showHotspots(view) {
+        allHotspotMeshes.forEach(mesh => scene.remove(mesh));
+        allHotspotLabels.forEach(label => { if (label && label.remove) label.remove(); else if (label && label.parentNode) label.parentNode.removeChild(label); });
+        allHotspotMeshes = [];
+        allHotspotLabels = [];
+        hotspotData[view].forEach((hotspot, idx) => {
+            const mesh = createHotspotMesh(hotspot, idx);
+            scene.add(mesh);
+            allHotspotMeshes.push(mesh);
+            const label = document.createElement('div');
+            label.className = 'hotspot-label';
+            label.innerText = hotspot.name;
+            label.style.display = 'none';
+            document.body.appendChild(label);
+            allHotspotLabels.push(label);
+        });
+    }
+    // ========== CAMERA SWITCH LOGIC ==========
+    function switchView(view) {
+        fadeTransition(() => {
+            activeView = view;
+            camera = cameras[view];
+            Object.entries(controls).forEach(([k, ctrl]) => ctrl.enabled = (k === view));
+            if (view === "tower") {
+                if (!controls.tower.isLocked) controls.tower.lock();
+            }
+            if(view==="main") controls.main.target.copy(getHotspotVector(hotspotData.main[0]));
+            if(view==="turbain") controls.turbain.target.copy(getHotspotVector(hotspotData.turbain[0]));
+            if(view==="car") controls.car.target.copy(getHotspotVector(hotspotData.car[0]));
+            showHotspots(view);
+            document.getElementById("back-btn").style.display = (view === "main") ? "none" : "block";
+            if (view === "turbain") {
+                setEnvMaterialsOpacity(0.0);
+                setBladesMaterialsOpacity(0.0);
+            }
+            else if (view === "main") {
+                restoreEnvMaterials();
+                restoreBladesMaterials();
+            }
+        });
+    }
+    function fadeTransition(cb) {
+        fadeOverlay.style.pointerEvents = 'auto';
+        fadeOverlay.style.opacity = 1;
+        setTimeout(() => {
+            cb();
+            setTimeout(() => {
+                fadeOverlay.style.opacity = 0;
+                setTimeout(() => { fadeOverlay.style.pointerEvents = 'none'; }, 500);
+            }, 100);
+        }, 500);
+    }
+    // --- Hotspot Interactivity ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let INTERSECTED = null;
+    function setupHotspotEvents() {
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(allHotspotMeshes);
+            allHotspotLabels.forEach(label => label.style.display = 'none');
+            INTERSECTED = null;
+            if (intersects.length > 0) {
+                const idx = intersects[0].object.userData.hotspotIndex;
+                INTERSECTED = idx;
+                allHotspotLabels[idx].style.display = 'block';
+                const vector = allHotspotMeshes[idx].position.clone().project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                allHotspotLabels[idx].style.left = `${x}px`;
+                allHotspotLabels[idx].style.top = `${y - 30}px`;
+            }
+        });
+        renderer.domElement.addEventListener('mouseleave', () => {
+            allHotspotLabels.forEach(label => label.style.display = 'none');
+            INTERSECTED = null;
+        });
+        renderer.domElement.addEventListener('click', (event) => {
+            if (INTERSECTED !== null) {
+                const hotspot = hotspotData[activeView][INTERSECTED];
+                if (activeView === "main" && hotspot.view) {
+                    switchView(hotspot.view);
+                } else {
+                    popupTitle.innerText = hotspot.title;
+                    popupDesc.innerText = hotspot.desc;
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    let x = event.clientX - rect.left + 30;
+                    let y = event.clientY - rect.top - 30;
+                    popup.style.display = 'block';
+                    popup.style.left = x + "px";
+                    popup.style.top = y + "px";
+                    setTimeout(() => {
+                        const popupRect = popup.getBoundingClientRect();
+                        const margin = 10;
+                        if (popupRect.right > window.innerWidth - margin) {
+                            popup.style.left = (window.innerWidth - popupRect.width - margin) + "px";
+                        }
+                        if (popupRect.bottom > window.innerHeight - margin) {
+                            popup.style.top = (window.innerHeight - popupRect.height - margin) + "px";
+                        }
+                        if (popupRect.left < margin) {
+                            popup.style.left = margin + "px";
+                        }
+                        if (popupRect.top < margin) {
+                            popup.style.top = margin + "px";
+                        }
+                    }, 10);
+                    exploreBtn.onclick = () => window.open('#', '_blank');
+                }
+            }
+        });
+    }
+    document.querySelector('.close-btn').onclick = () => { popup.style.display = 'none'; };
+    document.getElementById('back-btn').onclick = () => { switchView("main"); };
+    function updateHotspotLabels() {
+        allHotspotMeshes.forEach((mesh, idx) => {
+            if (allHotspotLabels[idx].style.display === 'block') {
+                const vector = mesh.position.clone().project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                allHotspotLabels[idx].style.left = `${x}px`;
+                allHotspotLabels[idx].style.top = `${y - 30}px`;
+            }
+        });
+    }
+    function animateFn() {
+        requestAnimationFrame(animateFn);
+        if (controls[activeView] && controls[activeView].update) controls[activeView].update();
+        if (bladesPivot) bladesPivot.rotation.z += 0.02;
+        renderer.render(scene, camera);
+        allHotspotMeshes.forEach((sprite, idx) => {
+            let size = getHotspotSize(activeView);
+            sprite.scale.set(size, size, 1);
+        });
+        updateHotspotLabels();
+    }
+    window.onload = function () {
+        init();
+        setupHotspotEvents();
+        animateFn();
+    };
+    </script>
 </body>
 </html>
