@@ -7,158 +7,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: 'Inter', sans-serif;
-            background-color: #1a202c;
-            color: #e2e8f0;
-        }
-        #webgl-output {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            position: absolute;
-            top: 0; left: 0;
-            z-index: 1;
-        }
-        #fade-overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            background: #fff;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 9999;
-            transition: opacity 0.5s;
-        }
-        #loading-overlay {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            background-color: #fff; /* White background for new loader */
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: #222;
-            z-index: 10;
-        }
-        .welcome-text {
-            font-family: 'Inter', sans-serif;
-            font-weight: 400;
-            font-size: 1.2em;
-            letter-spacing: 0.2px;
-            color: #222;
-            margin-top: 1em;
-            opacity: 0.85;
-            text-align: center;
-        }
-        /* Remove previous loader spinner styles */
-
-        /* Hotspot, popup, and other existing styles remain unchanged... */
-        .hotspot-label {
-            position: absolute;
-            background: #014282;
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 0 !important;
-            font-size: 0.95rem;
-            pointer-events: none;
-            white-space: nowrap;
-            z-index: 2000;
-            top: 0; left: 0;
-            transform: translate(-50%, -100%);
-        }
-        .hotspot-popup {
-            position: absolute;
-            background: #fff;
-            color: #222;
-            border-radius: 0 !important;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-            padding: 1.5rem 1.5rem 1rem 1.5rem;
-            min-width: 260px;
-            max-width: 90vw;
-            max-height: 80vh;
-            z-index: 2001;
-            display: none;
-            overflow: auto;
-            transition: opacity 0.2s;
-        }
-        .hotspot-popup h3 {
-            margin-top: 0;
-            font-size: 1.2em;
-            font-weight: bold;
-        }
-        .hotspot-popup .close-btn {
-            position: absolute;
-            top: 8px;
-            right: 12px;
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-        }
-        .popup-btn-row {
-            display: flex;
-            flex-direction: row;
-            justify-content: flex-end;
-            margin-top: 1.2em;
-        }
-        #explore-btn {
-            background: #014282 !important;
-            color: #fff !important;
-            border-radius: 0 !important;
-            border: none;
-            box-shadow: none;
-            padding: 8px 18px;
-            font-size: 1rem;
-            font-family: inherit;
-            font-weight: 600;
-            transition: background 0.2s;
-            margin-left: auto;
-            margin-right: 0;
-            display: inline-block;
-        }
-        #explore-btn:hover {
-            background: #2363a4 !important;
-        }
-        .back-btn {
-            display:none;
-            position:fixed;
-            top:32px;
-            left:32px;
-            width:48px;
-            height:48px;
-            padding:0;
-            background:none;
-            border:none;
-            z-index:9;
-            cursor:pointer;
-        }
-        .back-btn svg {
-            display:block;
-            width:100%;
-            height:100%;
-        }
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
+        #webgl-output { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #fade-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #fff; opacity: 0; pointer-events: none; z-index: 9999; transition: opacity 0.5s; }
+        #loading-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #222; z-index: 10; }
+        .welcome-text { font-family: 'Inter', sans-serif; font-weight: 400; font-size: 1.2em; letter-spacing: 0.2px; color: #222; margin-top: 1em; opacity: 0.85; text-align: center; }
+        .hotspot-label { position: absolute; background: #014282; color: #fff; padding: 2px 8px; border-radius: 0 !important; font-size: 0.95rem; pointer-events: none; white-space: nowrap; z-index: 2000; top: 0; left: 0; transform: translate(-50%, -100%); }
+        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 0 !important; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; max-width: 90vw; max-height: 80vh; z-index: 2001; display: none; overflow: auto; transition: opacity 0.2s; }
+        .hotspot-popup h3 { margin-top: 0; font-size: 1.2em; font-weight: bold; }
+        .hotspot-popup .close-btn { position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
+        .popup-btn-row { display: flex; flex-direction: row; justify-content: flex-end; margin-top: 1.2em; }
+        #explore-btn { background: #014282 !important; color: #fff !important; border-radius: 0 !important; border: none; box-shadow: none; padding: 8px 18px; font-size: 1rem; font-family: inherit; font-weight: 600; transition: background 0.2s; margin-left: auto; margin-right: 0; display: inline-block; }
+        #explore-btn:hover { background: #2363a4 !important; }
+        .back-btn { display:none; position:fixed; top:32px; left:32px; width:48px; height:48px; padding:0; background:none; border:none; z-index:9; cursor:pointer; }
+        .back-btn svg { display:block; width:100%; height:100%; }
         @media (max-width: 600px) {
-            .hotspot-popup {
-                min-width: 160px;
-                padding: 1em 0.8em 0.6em 0.8em;
-            }
-            .welcome-text {
-                font-size: 1em;
-            }
-            .popup-btn-row {
-                margin-top: 0.7em;
-            }
+            .hotspot-popup { min-width: 160px; padding: 1em 0.8em 0.6em 0.8em; }
+            .welcome-text { font-size: 1em; }
+            .popup-btn-row { margin-top: 0.7em; }
         }
     </style>
 </head>
 <body>
     <div id="fade-overlay"></div>
     <div id="loading-overlay">
-        <!-- New SVG Loader here -->
         <img src="loadernew.svg" alt="Loading..." width="80" height="80" />
         <p class="welcome-text">Welcome to Turbine Tour</p>
     </div>
@@ -222,7 +94,7 @@
             { name: "Power Supply", position: {x: 1, y: 185, z: -18}, title: "Power Supply", desc: "Power Supply details" }
         ],
         tower: [
-            { name: "Safety", position: {x: -18, y: 15, z: -25}, title: "Safety", desc: "Safety details" },
+            { name: "Safety", position: {x: -0, y: 15, z: -0}, title: "Safety", desc: "Safety details" },
             { name: "Turbine Operation", position: {x: +6, y: 8, z: -4}, title: "Turbine Operation", desc: "Turbine Operation details" }
         ],
         car: [
@@ -241,12 +113,12 @@
     cameras.turbain.position.set(0, 300, 0);
     cameras.turbain.filmGauge = DEFAULT_SENSOR_SIZE;
     cameras.tower = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
-    cameras.tower.position.set(0, 8, -5);
+    cameras.tower.position.set(20, 8, -5);
     cameras.tower.filmGauge = DEFAULT_SENSOR_SIZE;
-    cameras.car = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 0.1, 2000);
+    cameras.car = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
     cameras.car.position.set(
-        hotspotData.car[0].position.x + 50,
-        hotspotData.car[0].position.y + 0,
+        hotspotData.car[0].position.x + 4,
+        hotspotData.car[0].position.y -5,
         hotspotData.car[0].position.z + 15
     );
     cameras.car.filmGauge = DEFAULT_SENSOR_SIZE;
@@ -264,7 +136,15 @@
     controls.turbain.dampingFactor = 0.05;
     controls.turbain.enablePan = false;
     controls.turbain.enableZoom = false;
-    controls.tower = new THREE.PointerLockControls(cameras.tower, container);
+    // --- TOWER CAMERA uses OrbitControls instead of PointerLockControls ---
+    controls.tower = new THREE.OrbitControls(cameras.tower, container);
+    controls.tower.target.copy(getHotspotVector(hotspotData.tower[0]));
+    controls.tower.enableDamping = true;
+    controls.tower.dampingFactor = 0.05;
+    controls.tower.enablePan = false;
+    controls.tower.enableZoom = false;
+    controls.tower.minPolarAngle = 0; // Prevent looking below the floor
+    controls.tower.maxPolarAngle = Math.PI / 2; // Prevent looking above from top
     controls.car = new THREE.OrbitControls(cameras.car, container);
     controls.car.target.copy(getHotspotVector(hotspotData.car[0]));
     controls.car.enableDamping = true;
@@ -310,13 +190,9 @@
             towerMaterialRef.needsUpdate = true;
         }
     }
-
-    // ======== BLADE MESH VISIBILITY TOGGLE LOGIC ========
     function setBladesVisibility(isVisible) {
         if (bladesModel) bladesModel.visible = isVisible;
     }
-
-    // ======== SET ALL MATERIALS TO 0.2 OPACITY ========
     function setAllMaterialsOpacityToLow() {
         envTransparentMats.forEach(mat => {
             mat.transparent = true;
@@ -330,7 +206,6 @@
         });
         if (bladesModel) bladesModel.visible = true;
     }
-
     // ========== INIT ==========
     function init() {
         scene = new THREE.Scene();
@@ -432,9 +307,6 @@
         });
         showHotspots("main");
         window.addEventListener('resize', onWindowResize, false);
-        container.addEventListener('click', function() {
-            if (activeView === "tower" && !controls.tower.isLocked) controls.tower.lock();
-        });
     }
     function onWindowResize() {
         for (let k in cameras) {
@@ -485,11 +357,13 @@
             activeView = view;
             camera = cameras[view];
             Object.entries(controls).forEach(([k, ctrl]) => ctrl.enabled = (k === view));
-            if (view === "tower") {
-                if (!controls.tower.isLocked) controls.tower.lock();
-            }
+            // No pointer lock for tower anymore!
+            // if (view === "tower") {
+            //     if (!controls.tower.isLocked) controls.tower.lock();
+            // }
             if(view==="main") controls.main.target.copy(getHotspotVector(hotspotData.main[0]));
             if(view==="turbain") controls.turbain.target.copy(getHotspotVector(hotspotData.turbain[0]));
+            if(view==="tower") controls.tower.target.copy(getHotspotVector(hotspotData.tower[0]));
             if(view==="car") controls.car.target.copy(getHotspotVector(hotspotData.car[0]));
             showHotspots(view);
             document.getElementById("back-btn").style.display = (view === "main") ? "none" : "block";
@@ -553,7 +427,6 @@
             // If popup is open and user clicks outside popup, close popup
             if (popup.style.display === 'block') {
                 const popupRect = popup.getBoundingClientRect();
-                // event.clientX and event.clientY are relative to viewport
                 if (
                     event.clientX < popupRect.left ||
                     event.clientX > popupRect.right ||
@@ -597,7 +470,6 @@
                 }
             }
         });
-        // Hide popup on resize as well (optional, for better behavior)
         window.addEventListener('resize', () => { popup.style.display = 'none'; });
     }
     popupCloseBtn.onclick = () => { popup.style.display = 'none'; };
