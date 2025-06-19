@@ -12,8 +12,8 @@
         #fade-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #fff; opacity: 0; pointer-events: none; z-index: 9999; transition: opacity 0.5s; }
         #loading-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; }
         .welcome-text { font-family: 'Inter', sans-serif; font-weight: 400; font-size: 1.2em; letter-spacing: 0.2px; color: #222; margin-top: 1em; opacity: 0.85; text-align: center; }
-        .hotspot-label { position: absolute; background: #014282; color: #fff; padding: 2px 8px; border-radius: 0 !important; font-size: 0.95rem; pointer-events: none; white-space: nowrap; z-index: 999; }
-        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 0 !important; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; z-index: 1001; }
+        .hotspot-label { position: absolute; background: #014282; color: #fff; padding: 2px 8px; border-radius: 0 !important; font-size: 0.95rem; pointer-events: none; white-space: nowrap; z-index: 11; }
+        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 0 !important; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; z-index: 20; }
         .hotspot-popup h3 { margin-top: 0; font-size: 1.2em; font-weight: bold; }
         .hotspot-popup .close-btn { position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
         .popup-btn-row { display: flex; flex-direction: row; justify-content: flex-end; margin-top: 1.2em; }
@@ -51,22 +51,16 @@
     </button>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
-    // === BEGINNER FRIENDLY CODE WITH COMMENTS ===
-
-    // Store material references for special opacity changes
+    // --- Material references
     let towerSpecialMats = [], towerSpecialOriginals = [];
     let carSpecialMats = [], carSpecialOriginals = [];
-
-    // For original turbine functionality
     let envTransparentMats = [], envOriginals = [];
     let bladesTransparentMats = [], bladesOriginals = [];
     let towerMaterialRef = null;
     let bladesModel = null, bladesPivot = null;
 
-    // Scene, camera, controls, etc.
     let scene, camera, renderer;
     let controls = {};
     let activeView = "main";
@@ -81,7 +75,7 @@
     const popupCloseBtn = document.getElementById('popup-close-btn');
     const DEFAULT_SENSOR_SIZE = 35; // mm
 
-    // Hotspot data for views
+    // --- Hotspot data for views
     const hotspotData = {
         main: [
             { name: "Turbine", position: {x: 0, y: 187, z: -10}, title: "Turbine", desc: "Go in-depth inside the Turbine.", view: "turbain" },
@@ -111,7 +105,7 @@
         return new THREE.Vector3(hotspot.position.x, hotspot.position.y, hotspot.position.z);
     }
 
-    // Camera setup for each view
+    // --- Camera setup for each view
     const cameras = {};
     cameras.main = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
     cameras.main.position.set(300, 90, 240);
@@ -130,7 +124,7 @@
     );
     cameras.car.filmGauge = DEFAULT_SENSOR_SIZE;
 
-    // Controls for each view
+    // --- Controls for each view
     controls.main = new THREE.OrbitControls(cameras.main, container);
     controls.main.target.copy(getHotspotVector(hotspotData.main[0]));
     controls.main.enableDamping = true;
@@ -164,8 +158,35 @@
     controls.car.minPolarAngle = 0;
     controls.car.maxPolarAngle = Math.PI / 2;
 
-    // ===== MATERIAL HANDLING FUNCTIONS =====
-    // For original turbine fade
+    // --- Material handling functions
+    // Car special materials: use only material name, not mesh name
+    const carSpecialMatNames = ["Mat_White","VestasLogoTransparent","Mat_Grey_03"];
+    function setCarSpecialOpacity(alpha) {
+        carSpecialMats.forEach(mat => {
+            mat.transparent = true;
+            mat.opacity = alpha;
+            mat.needsUpdate = true;
+        });
+    }
+    function restoreCarSpecialOpacity() {
+        carSpecialOriginals.forEach(orig => {
+            orig.mat.opacity = orig.opacity;
+            orig.mat.transparent = orig.transparent;
+            orig.mat.needsUpdate = true;
+        });
+    }
+    // Tower special (by mesh+material name)
+    function setTowerSpecialOpacity(alpha) {
+        towerSpecialMats.forEach(mat => { mat.transparent = true; mat.opacity = alpha; mat.needsUpdate = true; });
+    }
+    function restoreTowerSpecialOpacity() {
+        towerSpecialOriginals.forEach(orig => {
+            orig.mat.opacity = orig.opacity;
+            orig.mat.transparent = orig.transparent;
+            orig.mat.needsUpdate = true;
+        });
+    }
+    // Turbine fade
     function setAllMaterialsOpacityToLow() {
         envTransparentMats.forEach(mat => { mat.transparent = true; mat.opacity = 0.2; mat.needsUpdate = true; });
         bladesTransparentMats.forEach(mat => { mat.transparent = true; mat.opacity = 0.2; mat.needsUpdate = true; });
@@ -185,32 +206,11 @@
             orig.mat.needsUpdate = true;
         });
     }
-    // For tower and car custom fade
-    function setTowerSpecialOpacity(alpha) {
-        towerSpecialMats.forEach(mat => { mat.transparent = true; mat.opacity = alpha; mat.needsUpdate = true; });
-    }
-    function restoreTowerSpecialOpacity() {
-        towerSpecialOriginals.forEach(orig => {
-            orig.mat.opacity = orig.opacity;
-            orig.mat.transparent = orig.transparent;
-            orig.mat.needsUpdate = true;
-        });
-    }
-    function setCarSpecialOpacity(alpha) {
-        carSpecialMats.forEach(mat => { mat.transparent = true; mat.opacity = alpha; mat.needsUpdate = true; });
-    }
-    function restoreCarSpecialOpacity() {
-        carSpecialOriginals.forEach(orig => {
-            orig.mat.opacity = orig.opacity;
-            orig.mat.transparent = orig.transparent;
-            orig.mat.needsUpdate = true;
-        });
-    }
     function setBladesVisibility(isVisible) {
         if (bladesModel) bladesModel.visible = isVisible;
     }
 
-    // ===== INIT FUNCTION =====
+    // --- INIT ---
     function init() {
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a202c);
@@ -231,7 +231,7 @@
             model.scale.set(2, 2, 2);
             scene.add(model);
 
-            // For original turbine fade
+            // --- Original turbine fade materials ---
             const envMatNames = [
                 "Nacelle_outershell","spoiler_outer","Transparent_flip","Nacelle","Skeleton","Red Emmition"
             ];
@@ -241,8 +241,7 @@
             envTransparentMats = []; envOriginals = [];
             towerSpecialMats = []; towerSpecialOriginals = [];
             carSpecialMats = []; carSpecialOriginals = [];
-
-            // For tower and car custom fade
+            // Tower special
             const towerSpecialMeshes = [
                 "MatChangeGroup9_Tower_Shell",
                 "MatChangeGroup10_MatChangeGroup19_Tower_Inside.001"
@@ -251,6 +250,7 @@
                 "Tower",
                 "Tower_inside"
             ];
+            // Car special (classic, for completeness, but we don't use mesh filtering for fade)
             const carSpecialMeshes = [
                 "MatChangeGroup20_Service_Van",
                 "MatChangeGroup20_Service_Van.003",
@@ -258,15 +258,10 @@
                 "MatChangeGroup20_Service_Van.002",
                 "MatChangeGroup19_Service_Van.005"
             ];
-            const carSpecialMatNames = [
-                "Mat_White",
-                "VestasLogoTransparent",
-                "Mat_Grey_03"
-            ];
-
+            // --- Traverse and fill arrays ---
             model.traverse(function(child) {
                 if (child.isMesh) {
-                    // Original turbine fade
+                    // --- Turbine environment ---
                     let materials = Array.isArray(child.material) ? child.material : [child.material];
                     materials.forEach(mat => {
                         if (mat && envMatNames.includes(mat.name)) {
@@ -283,7 +278,7 @@
                             }
                         });
                     }
-                    // Tower special
+                    // --- Tower special ---
                     if (towerSpecialMeshes.includes(child.name)) {
                         let towerMats = Array.isArray(child.material) ? child.material : [child.material];
                         towerMats.forEach(mat => {
@@ -293,16 +288,16 @@
                             }
                         });
                     }
-                    // Car special
-                    if (carSpecialMeshes.includes(child.name)) {
-                        let carMats = Array.isArray(child.material) ? child.material : [child.material];
-                        carMats.forEach(mat => {
-                            if (mat && carSpecialMatNames.includes(mat.name)) {
+                    // --- Car special: by material name only ---
+                    let carMats = Array.isArray(child.material) ? child.material : [child.material];
+                    carMats.forEach(mat => {
+                        if (mat && carSpecialMatNames.includes(mat.name)) {
+                            if (!carSpecialMats.includes(mat)) {
                                 carSpecialMats.push(mat);
                                 carSpecialOriginals.push({mat: mat, opacity: mat.opacity, transparent: mat.transparent});
                             }
-                        });
-                    }
+                        }
+                    });
                     // Tower main material ref for double side
                     if (child.name && child.name.toLowerCase().includes("tower")) {
                         let towerMats = Array.isArray(child.material) ? child.material : [child.material];
@@ -316,6 +311,7 @@
                     }
                 }
             });
+
             loadingOverlay.style.display = 'none';
         });
 
@@ -342,9 +338,11 @@
                 }
             });
         });
+
         showHotspots("main");
         window.addEventListener('resize', onWindowResize, false);
     }
+
     function onWindowResize() {
         for (let k in cameras) {
             cameras[k].aspect = window.innerWidth / window.innerHeight;
@@ -353,7 +351,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // ===== HOTSPOT AND UI CODE (unchanged, beginner can skip for now) =====
+    // --- Hotspot and UI code (unchanged) ---
     function createHotspotMesh(hotspot, idx) {
         const map = new THREE.TextureLoader().load(
             `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='28' fill='${encodeURIComponent("#014282")}' fill-opacity='0.8'/></svg>`
@@ -388,7 +386,7 @@
         });
     }
 
-    // ===== CAMERA SWITCH LOGIC (main code for your request) =====
+    // --- CAMERA SWITCH LOGIC (full feature) ---
     function switchView(view) {
         // Hide popup whenever switching camera
         popup.style.display = 'none';
@@ -441,7 +439,7 @@
         });
     }
 
-    // ======= UI/Animation/Hotspot Events (unchanged, beginner can skip) =======
+    // --- UI/Animation/Hotspot Events ---
     function fadeTransition(cb) {
         fadeOverlay.style.pointerEvents = 'auto';
         fadeOverlay.style.opacity = 1;
@@ -527,9 +525,9 @@
             }
         });
         window.addEventListener('resize', () => { popup.style.display = 'none'; });
+        popupCloseBtn.onclick = () => { popup.style.display = 'none'; };
+        document.getElementById('back-btn').onclick = () => { switchView("main"); };
     }
-    popupCloseBtn.onclick = () => { popup.style.display = 'none'; };
-    document.getElementById('back-btn').onclick = () => { switchView("main"); };
     function updateHotspotLabels() {
         allHotspotMeshes.forEach((mesh, idx) => {
             if (allHotspotLabels[idx].style.display === 'block') {
@@ -553,12 +551,13 @@
         updateHotspotLabels();
     }
 
-    // ===== BOOT =====
+    // --- BOOT ---
     window.onload = function () {
         init();
         setupHotspotEvents();
         animateFn();
     };
+
     </script>
 </body>
 </html>
