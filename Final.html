@@ -13,7 +13,7 @@
         #loading-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; }
         .welcome-text { font-family: 'Inter', sans-serif; font-weight: 400; font-size: 1.2em; letter-spacing: 0.2px; color: #222; margin-top: 1em; opacity: 0.85; text-align: center; }
         .hotspot-label { position: absolute; background: #014282; color: #fff; padding: 2px 8px; border-radius: 0 !important; font-size: 0.95rem; pointer-events: none; white-space: nowrap; z-index: 11; }
-        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 0 !important; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; z-index: 20; }
+        .hotspot-popup { position: absolute; background: #fff; color: #222; border-radius: 0 !important; box-shadow: 0 8px 32px rgba(0,0,0,0.2); padding: 1.5rem 1.5rem 1rem 1.5rem; min-width: 260px; z-index: 20; display: none; }
         .hotspot-popup h3 { margin-top: 0; font-size: 1.2em; font-weight: bold; }
         .hotspot-popup .close-btn { position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
         .popup-btn-row { display: flex; flex-direction: row; justify-content: flex-end; margin-top: 1.2em; }
@@ -75,7 +75,7 @@
     const popupCloseBtn = document.getElementById('popup-close-btn');
     const DEFAULT_SENSOR_SIZE = 35; // mm
 
-    // --- Hotspot data for views
+    // --- Hotspot data for views (unchanged) ---
     const hotspotData = {
         main: [
             { name: "Turbine", position: {x: 0, y: 187, z: -10}, title: "Turbine", desc: "Go in-depth inside the Turbine.", view: "turbain" },
@@ -105,7 +105,7 @@
         return new THREE.Vector3(hotspot.position.x, hotspot.position.y, hotspot.position.z);
     }
 
-    // --- Camera setup for each view
+    // --- Camera setup for each view (unchanged) ---
     const cameras = {};
     cameras.main = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
     cameras.main.position.set(300, 90, 240);
@@ -124,7 +124,7 @@
     );
     cameras.car.filmGauge = DEFAULT_SENSOR_SIZE;
 
-    // --- Controls for each view
+    // --- Controls for each view (unchanged) ---
     controls.main = new THREE.OrbitControls(cameras.main, container);
     controls.main.target.copy(getHotspotVector(hotspotData.main[0]));
     controls.main.enableDamping = true;
@@ -158,8 +158,7 @@
     controls.car.minPolarAngle = 0;
     controls.car.maxPolarAngle = Math.PI / 2;
 
-    // --- Material handling functions
-    // Car special materials: use only material name, not mesh name
+    // --- Material handling functions (unchanged) ---
     const carSpecialMatNames = ["Mat_White","VestasLogoTransparent","Mat_Grey_03"];
     function setCarSpecialOpacity(alpha) {
         carSpecialMats.forEach(mat => {
@@ -175,7 +174,6 @@
             orig.mat.needsUpdate = true;
         });
     }
-    // Tower special (by mesh+material name)
     function setTowerSpecialOpacity(alpha) {
         towerSpecialMats.forEach(mat => { mat.transparent = true; mat.opacity = alpha; mat.needsUpdate = true; });
     }
@@ -186,7 +184,6 @@
             orig.mat.needsUpdate = true;
         });
     }
-    // Turbine fade
     function setAllMaterialsOpacityToLow() {
         envTransparentMats.forEach(mat => { mat.transparent = true; mat.opacity = 0.2; mat.needsUpdate = true; });
         bladesTransparentMats.forEach(mat => { mat.transparent = true; mat.opacity = 0.2; mat.needsUpdate = true; });
@@ -313,6 +310,8 @@
             });
 
             loadingOverlay.style.display = 'none';
+            // Ensure popup is hidden after loading
+            popup.style.display = 'none';
         });
 
         // --- Load blades GLB (unchanged)
@@ -553,11 +552,12 @@
 
     // --- BOOT ---
     window.onload = function () {
+        // Make sure popup is hidden on load
+        popup.style.display = 'none';
         init();
         setupHotspotEvents();
         animateFn();
     };
-
     </script>
 </body>
 </html>
