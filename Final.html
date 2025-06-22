@@ -80,25 +80,25 @@
         main: [
             { name: "Turbine", position: {x: 0, y: 187, z: -10}, title: "Turbine", desc: "Go in-depth inside the Turbine.", view: "turbain" },
             { name: "Tower", position: {x: 0, y: 10, z: 0}, title: "Tower", desc: "Go in-depth inside the Tower.", view: "tower" },
-            { name: "Car", position: {x: 25, y: 3, z: 1}, title: "Car", desc: "Go to Service Van.", view: "car" }
+            { name: "Car", position: {x: 25, y: 3, z: 1}, title: "Car", desc: "Go to Service Car.", view: "Car" }
         ],
         turbain: [
-            { name: "Hub", position: {x: 1, y: 188, z: 5}, title: "Hub", desc: "Drivetrain details" },
-            { name: "Yaw", position: {x: 2, y: 183, z: -8}, title: "Yaw", desc: "Yaw system details" },
-            { name: "Hydraulics", position: {x: -3, y: 189, z: -12}, title: "Hydraulics", desc: "Hydraulics details" },
-            { name: "Power Generator", position: {x: 0, y: 193, z: -14}, title: "Power Generator", desc: "Power Generator details" },
-            { name: "Controls & Safety", position: {x: -7, y: 188, z: -18}, title: "Controls & Safety", desc: "Controls & Safety details" },
-            { name: "Turbine System", position: {x: -4, y: 185, z: -12}, title: "Turbine System", desc: "Turbine System details" },
-            { name: "Power Supply", position: {x: 1, y: 185, z: -18}, title: "Power Supply", desc: "Power Supply details" }
+            { name: "Drivetrain", position: {x: 0, y: 188, z: -5.3}, title: "Drivetrain", desc: "Drivetrain details" },
+            { name: "Yaw", position: {x: 0, y: 183, z: -4.5}, title: "Yaw", desc: "Yaw system details" },
+            { name: "Hydraulics", position: {x: -3, y: 187, z: -12}, title: "Hydraulics", desc: "Hydraulics details" },
+            { name: "Power Generator", position: {x: 3, y: 187, z: -15}, title: "Power Generator", desc: "Power Generator details" },
+            { name: "Controls & Safety", position: {x: -2, y: 187.5, z: -17}, title: "Controls & Safety", desc: "Controls & Safety details" },
+            { name: "Hub", position: {x: 0, y: 187, z: 5.5}, title: "Hub", desc: "Turbine System details" },
+            { name: "Power Supply", position: {x: 0, y: 187, z: -20.5}, title: "Power Supply", desc: "Power Supply details" }
         ],
         tower: [
-            { name: "Safety", position: {x: -0, y: 15, z: -0}, title: "Safety", desc: "Safety details" },
-            { name: "Turbine Operation", position: {x: +6, y: 8, z: -4}, title: "Turbine Operation", desc: "Turbine Operation details" }
+            { name: "Safety", position: {x: -1.8, y: 9, z: -7.5}, title: "Safety", desc: "Safety details" },
+            { name: "Turbine Operation", position: {x: +2, y: 8, z: -4.5}, title: "Turbine Operation", desc: "Turbine Operation details" }
         ],
         car: [
-            { name: "Scheduled Service", position: {x: 22, y: 1, z: 3}, title: "Scheduled Service", desc: "Scheduled Service info" },
-            { name: "Documentation", position: {x: 20, y: 3, z: 1}, title: "Documentation", desc: "Documentation info" },
-            { name: "Trouble Shooting Tools", position: {x: 30, y: 0, z: 3}, title: "Trouble Shooting Tools", desc: "Trouble Shooting Tools info" }
+            { name: "Scheduled Service", position: {x: 22.5, y: 1, z: 1.8}, title: "Scheduled Service", desc: "Scheduled Service info" },
+            { name: "Documentation", position: {x: 21, y: 2.3, z: 6}, title: "Documentation", desc: "Documentation info" },
+            { name: "Trouble Shooting Tools", position: {x: 29, y: -1, z: 3.5}, title: "Trouble Shooting Tools", desc: "Trouble Shooting Tools info" }
         ]
     };
     function getHotspotVector(hotspot) {
@@ -160,6 +160,14 @@
 
     // --- Material handling functions (unchanged) ---
     const carSpecialMatNames = ["Mat_White","VestasLogoTransparent","Mat_Grey_03"];
+    // --- ADDED: Material names for env and blades for turbain view ---
+    const turbainEnvMatNames = [
+        "Nacelle_outershell","spoiler_outer","Transparent_flip","Nacelle","Skeleton","Red Emmition",
+        "BaseFrame","New_skabe_etc","HubFrame"
+    ];
+    const turbainBladesMatNames = [
+        "Hub_Blade1", "Transparent_flip", "HubFrame" // "HubFrame" listed twice doesn't add value
+    ];
     function setCarSpecialOpacity(alpha) {
         carSpecialMats.forEach(mat => {
             mat.transparent = true;
@@ -261,7 +269,9 @@
                     // --- Turbine environment ---
                     let materials = Array.isArray(child.material) ? child.material : [child.material];
                     materials.forEach(mat => {
-                        if (mat && envMatNames.includes(mat.name)) {
+                        // OLD: if (mat && envMatNames.includes(mat.name)) {
+                        // NEW: Use envMatNames OR turbainEnvMatNames
+                        if (mat && (envMatNames.includes(mat.name) || turbainEnvMatNames.includes(mat.name))) {
                             envTransparentMats.push(mat);
                             envOriginals.push({mat: mat, opacity: mat.opacity, transparent: mat.transparent});
                         }
@@ -329,7 +339,9 @@
                 if (child.isMesh) {
                     let materials = Array.isArray(child.material) ? child.material : [child.material];
                     materials.forEach(mat => {
-                        if (mat && (mat.name === "Hub_Blade1" || mat.name === "Transparent_flip")) {
+                        // OLD: if (mat && (mat.name === "Hub_Blade1" || mat.name === "Transparent_flip")) {
+                        // NEW: Use turbainBladesMatNames
+                        if (mat && turbainBladesMatNames.includes(mat.name)) {
                             bladesTransparentMats.push(mat);
                             bladesOriginals.push({mat: mat, opacity: mat.opacity, transparent: mat.transparent});
                         }
