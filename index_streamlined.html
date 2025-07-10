@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydraulic Systems Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Inter', sans-serif; 
+            background-color: #1a202c; 
+            color: #e2e8f0; 
+        }
+        
+        #webgl-output { 
+            display: block; 
+            width: 100vw; 
+            height: 100vh; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            z-index: 1; 
+        }
+        
+        #loading-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background-color: #1a202c; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 10000; 
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #39b5eb;
+            border-top: 4px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .welcome-text { 
+            font-family: 'Inter', sans-serif; 
+            font-weight: 400; 
+            font-size: 1.2em; 
+            letter-spacing: 0.2px; 
+            color: #e2e8f0; 
+            margin-top: 1em; 
+            opacity: 0.85; 
+            text-align: center; 
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p class="welcome-text">Loading Hydraulic Systems...</p>
+    </div>
+    
+    <div id="webgl-output"></div>
+
+    <script type="module">
+        // Import Three.js and required modules
+        import * as THREE from './library/three.js-master/build/three.module.min.js';
+        import { OrbitControls } from './library/three.js-master/examples/jsm/controls/OrbitControls.js';
+        import { GLTFLoader } from './library/three.js-master/examples/jsm/loaders/GLTFLoader.js';
+        import { EffectComposer } from './library/three.js-master/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from './library/three.js-master/examples/jsm/postprocessing/RenderPass.js';
+        import { SSAOPass } from './library/three.js-master/examples/jsm/postprocessing/SSAOPass.js';
+        import { ShaderPass } from './library/three.js-master/examples/jsm/postprocessing/ShaderPass.js';
+        import { FXAAShader } from './library/three.js-master/examples/jsm/shaders/FXAAShader.js';
+        
+        // Global variables
+        let scene, camera, renderer, controls;
+        let hydraulicModel = null;
+        let composer, ssaoPass;
+        
+        // DOM elements
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const container = document.getElementById('webgl-output');
+        
+        // Create gradient background for studio effect
+        function createGradientBackground() {
+            const backgroundGeometry = new THREE.SphereGeometry(1000, 32, 32);
+            
+            // Create canvas for gradient
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Create vertical gradient (light gray at bottom, dark gray at top)
+            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+            gradient.addColorStop(0, '#4a5568'); // Dark gray at top
+            gradient.addColorStop(1, '#a0aec0'); // Light gray at bottom
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // Create texture from canvas
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            // Create material with gradient texture
+            const backgroundMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.BackSide // Render inside the sphere
+            });
+            
+            // Create background mesh
+            const backgroundMesh = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+            backgroundMesh.name = 'backgroundSphere';
+            
+            // Add to scene
+            scene.add(backgroundMesh);
+            
+            console.log('Gradient background created');
+        }
+        
+        // Setup 3-point studio lighting system
+        function setup3PointLighting() {
+            // Remove existing lights
+            const existingLights = scene.children.filter(child => child.isLight);
+            existingLights.forEach(light => scene.remove(light));
+            
+            // 1. KEY LIGHT - Main light source
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            keyLight.position.set(100, 80, 100);
+            keyLight.castShadow = true;
+            
+            // Configure shadow properties for better quality
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.camera.near = 0.1;
+            keyLight.shadow.camera.far = 500;
+            keyLight.shadow.camera.left = -100;
+            keyLight.shadow.camera.right = 100;
+            keyLight.shadow.camera.top = 100;
+            keyLight.shadow.camera.bottom = -100;
+            keyLight.shadow.bias = -0.0001;
+            
+            keyLight.name = 'keyLight';
+            scene.add(keyLight);
+            
+            // 2. FILL LIGHT - Softens shadows from key light
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            fillLight.position.set(-60, 40, -60);
+            fillLight.name = 'fillLight';
+            scene.add(fillLight);
+            
+            // 3. RIM LIGHT - Separates subject from background
+            const rimLight = new THREE.DirectionalLight(0x87ceeb, 0.8);
+            rimLight.position.set(0, 120, -80);
+            rimLight.name = 'rimLight';
+            scene.add(rimLight);
+            
+            // 4. AMBIENT LIGHT - Overall scene illumination
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            ambientLight.name = 'ambientLight';
+            scene.add(ambientLight);
+            
+            // 5. HEMISPHERE LIGHT - Sky/ground lighting
+            const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x654321, 0.5);
+            hemisphereLight.position.set(0, 200, 0);
+            hemisphereLight.name = 'hemisphereLight';
+            scene.add(hemisphereLight);
+            
+            // 6. ACCENT LIGHTS - Subtle cinematic lighting
+            const accentLight1 = new THREE.PointLight(0x39b5eb, 0.3, 200);
+            accentLight1.position.set(80, 60, 40);
+            accentLight1.name = 'accentLight1';
+            scene.add(accentLight1);
+            
+            const accentLight2 = new THREE.PointLight(0xff6b6b, 0.2, 150);
+            accentLight2.position.set(-40, 80, -60);
+            accentLight2.name = 'accentLight2';
+            scene.add(accentLight2);
+            
+            console.log('3-point studio lighting setup complete');
+        }
+        
+        // Setup post-processing with SSAO
+        function setupPostProcessing() {
+            try {
+                // Create composer
+                composer = new EffectComposer(renderer);
+                
+                // Add render pass
+                const renderPass = new RenderPass(scene, camera);
+                composer.addPass(renderPass);
+                
+                // Add SSAO pass
+                ssaoPass = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
+                ssaoPass.kernelRadius = 16;
+                ssaoPass.minDistance = 0.005;
+                ssaoPass.maxDistance = 0.1;
+                ssaoPass.output = SSAOPass.OUTPUT.Default;
+                composer.addPass(ssaoPass);
+                
+                // Add FXAA pass for antialiasing
+                const fxaaPass = new ShaderPass(FXAAShader);
+                fxaaPass.material.uniforms['resolution'].value.x = 1 / window.innerWidth;
+                fxaaPass.material.uniforms['resolution'].value.y = 1 / window.innerHeight;
+                composer.addPass(fxaaPass);
+                
+                console.log('Post-processing setup complete with SSAO');
+            } catch (error) {
+                console.warn('Post-processing setup failed, falling back to basic renderer:', error);
+                composer = null;
+                ssaoPass = null;
+            }
+        }
+        
+        // Setup camera controls
+        function setupControls() {
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = false; // Zoom disabled as per requirements
+            controls.enablePan = false; // Pan disabled as per requirements
+            controls.screenSpacePanning = false;
+            controls.minDistance = 10;
+            controls.maxDistance = 200;
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.autoRotate = false;
+            controls.autoRotateSpeed = 0.5;
+            
+            console.log('OrbitControls setup complete - rotation only');
+        }
+        
+        // Create floor/ground plane
+        function createFloor() {
+            const floorGeometry = new THREE.PlaneGeometry(200, 200);
+            const floorMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x808080,
+                transparent: true,
+                opacity: 0.3
+            });
+            
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -5;
+            floor.receiveShadow = true;
+            floor.name = 'hydraulicFloor';
+            
+            scene.add(floor);
+            console.log('Floor created');
+        }
+        
+        // Load the hydraulic systems GLB model
+        function loadHydraulicModel() {
+            const loader = new GLTFLoader();
+            
+            console.log('Loading hydraulic systems model...');
+            
+            // Try different model files since hydraulicsystems.glb doesn't exist
+            const possibleModels = ['hydraulicsystems.glb', '3dscn.gltf', 'windmillenv.glb'];
+            let modelIndex = 0;
+            
+            function tryLoadModel() {
+                const modelPath = possibleModels[modelIndex];
+                console.log(`Attempting to load: ${modelPath}`);
+                
+                loader.load(
+                    modelPath,
+                    function(gltf) {
+                        console.log(`Model loaded successfully: ${modelPath}`);
+                        
+                        // Add the model to the scene
+                        hydraulicModel = gltf.scene;
+                        scene.add(hydraulicModel);
+                        
+                        // Enable shadows for all meshes
+                        hydraulicModel.traverse(function(child) {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                
+                                // Enable environment mapping for materials
+                                if (child.material) {
+                                    child.material.needsUpdate = true;
+                                    if (child.material.isStandardMaterial || child.material.isPhysicalMaterial) {
+                                        child.material.envMapIntensity = 0.5;
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Position and scale the model
+                        resetCameraPosition();
+                        
+                        // Hide loading screen
+                        loadingOverlay.style.display = 'none';
+                        
+                        // Start animation loop
+                        animate();
+                        
+                        console.log('Hydraulic systems model setup complete');
+                    },
+                    function(progress) {
+                        console.log(`Loading progress: ${(progress.loaded / progress.total * 100).toFixed(1)}%`);
+                    },
+                    function(error) {
+                        console.error(`Error loading ${modelPath}:`, error);
+                        modelIndex++;
+                        
+                        if (modelIndex < possibleModels.length) {
+                            console.log('Trying next model...');
+                            tryLoadModel();
+                        } else {
+                            // Hide loading screen even on error
+                            loadingOverlay.style.display = 'none';
+                            
+                            // Show error message
+                            const errorMsg = document.createElement('div');
+                            errorMsg.style.cssText = `
+                                position: fixed;
+                                top: 50%;
+                                left: 50%;
+                                transform: translate(-50%, -50%);
+                                background: #ff4444;
+                                color: white;
+                                padding: 20px;
+                                border-radius: 8px;
+                                font-family: 'Inter', sans-serif;
+                                text-align: center;
+                                z-index: 10000;
+                            `;
+                            errorMsg.innerHTML = `
+                                <h3>Error Loading Model</h3>
+                                <p>Could not load any 3D model files</p>
+                                <p style="font-size: 0.9em; opacity: 0.8;">Tried: ${possibleModels.join(', ')}</p>
+                            `;
+                            document.body.appendChild(errorMsg);
+                            
+                            // Start animation loop anyway (for debugging)
+                            animate();
+                        }
+                    }
+                );
+            }
+            
+            tryLoadModel();
+        }
+        
+        // Reset camera position based on model
+        function resetCameraPosition() {
+            if (hydraulicModel) {
+                const box = new THREE.Box3().setFromObject(hydraulicModel);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                // Position camera to view the model
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const distance = maxDim * 1.5;
+                
+                camera.position.set(
+                    center.x + distance * 0.8,
+                    center.y + distance * 0.6,
+                    center.z + distance * 0.8
+                );
+                controls.target.copy(center);
+                controls.update();
+                
+                console.log('Camera position reset for model viewing');
+            }
+        }
+        
+        // Initialize the 3D scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            
+            // Create gradient background for studio effect
+            createGradientBackground();
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(
+                70, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                2000
+            );
+            camera.position.set(50, 30, 50);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            container.appendChild(renderer.domElement);
+            
+            // Setup post-processing for SSAO
+            setupPostProcessing();
+            
+            // Setup controls
+            setupControls();
+            
+            // Setup 3-point studio lighting
+            setup3PointLighting();
+            
+            // Create floor
+            createFloor();
+            
+            // Load the hydraulic systems model
+            loadHydraulicModel();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+            
+            console.log('3D scene initialized');
+        }
+        
+        function onWindowResize() {
+            // Update camera aspect ratio
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            
+            // Update renderer size
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            // Update post-processing composer if available
+            if (composer) {
+                composer.setSize(window.innerWidth, window.innerHeight);
+                
+                // Update SSAO pass
+                if (ssaoPass) {
+                    ssaoPass.setSize(window.innerWidth, window.innerHeight);
+                }
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update controls
+            if (controls) {
+                controls.update();
+            }
+            
+            // Render the scene with post-processing or basic renderer
+            if (composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        // Expose useful functions for debugging
+        window.resetCamera = resetCameraPosition;
+        window.toggleAutoRotate = function() {
+            controls.autoRotate = !controls.autoRotate;
+        };
+        
+        // Initialize the application when the page loads
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

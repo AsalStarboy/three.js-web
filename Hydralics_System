@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydraulic Systems Interactive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Inter', sans-serif; 
+            background-color: #1a202c; 
+            color: #e2e8f0; 
+        }
+        
+        #webgl-output { 
+            display: block; 
+            width: 100vw; 
+            height: 100vh; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            z-index: 1; 
+        }
+        
+        #loading-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background-color: #1a202c; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 10000; 
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #39b5eb;
+            border-top: 4px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .welcome-text { 
+            font-family: 'Inter', sans-serif; 
+            font-weight: 400; 
+            font-size: 1.2em; 
+            letter-spacing: 0.2px; 
+            color: #e2e8f0; 
+            margin-top: 1em; 
+            opacity: 0.85; 
+            text-align: center; 
+        }
+        
+        .controls-info {
+            display: none; /* Hide controls guide */
+        }
+        
+        .controls-info h4 {
+            margin: 0 0 8px 0;
+            color: #39b5eb;
+            font-weight: 600;
+        }
+        
+        .controls-info p {
+            margin: 4px 0;
+            opacity: 0.9;
+        }
+        
+        /* Hotspot System Styles */
+        .hotspot-popup {
+            position: absolute;
+            background: #fff;
+            color: #222;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            min-width: 320px;
+            max-width: 400px;
+            z-index: 10010;
+            display: none;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .hotspot-popup h3 {
+            margin-top: 0;
+            margin-bottom: 0.8rem;
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #1a202c;
+            line-height: 1.3;
+        }
+        
+        .hotspot-popup p {
+            margin: 0;
+            font-size: 0.95em;
+            line-height: 1.5;
+            color: #4a5568;
+        }
+        
+        .hotspot-popup .close-btn {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            color: #718096;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        
+        .hotspot-popup .close-btn:hover {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+        
+        .hotspot-dom-marker {
+            position: absolute;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(57,181,235,0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+            background: #39b5eb;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            user-select: none;
+            outline: none;
+            width: 5.6px;
+            height: 5.6px;
+        }
+        
+        .hotspot-dom-marker:hover,
+        .hotspot-dom-marker.active {
+            background: #2c5282;
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(57,181,235,0.4);
+        }
+        
+        .hotspot-dom-marker svg {
+            display: block;
+            width: 2.8px;
+            height: 2.8px;
+            pointer-events: none;
+        }
+        
+        .hotspot-tooltip {
+            position: absolute;
+            left: 120%;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #2d3748;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 6px;
+            padding: 6px 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10020;
+            white-space: nowrap;
+            visibility: hidden;
+        }
+        
+        .hotspot-tooltip::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -4px;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+            border-right: 4px solid #2d3748;
+        }
+        
+        .hotspot-dom-marker:hover .hotspot-tooltip,
+        .hotspot-dom-marker.active .hotspot-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(-50%) translateX(8px);
+        }
+        
+        @media (max-width: 768px) {
+            .hotspot-popup {
+                min-width: 280px;
+                max-width: 320px;
+                padding: 1.2rem 1.2rem 0.8rem 1.2rem;
+            }
+            
+            .hotspot-popup h3 {
+                font-size: 1.1em;
+            }
+            
+            .hotspot-popup p {
+                font-size: 0.9em;
+            }
+            
+            .hotspot-dom-marker {
+                width: 6.4px;
+                height: 6.4px;
+            }
+            
+            .hotspot-dom-marker svg {
+                width: 3.2px;
+                height: 3.2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p class="welcome-text">Loading Hydraulic Systems...</p>
+    </div>
+    
+    <div id="webgl-output"></div>
+    
+    <!-- Hotspot Popup -->
+    <div id="hotspot-popup" class="hotspot-popup">
+        <button class="close-btn" id="popup-close-btn" aria-label="Close">&times;</button>
+        <h3 id="popup-title"></h3>
+        <p id="popup-desc"></p>
+    </div>
+    
+    <div class="controls-info">
+        <h4>Controls</h4>
+        <p>🖱️ Left Click + Drag: Rotate</p>
+        <p>🖱️ Right Click + Drag: Pan</p>
+        <p>⚠️ Zoom: Disabled</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SSAOPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/SimplexNoise.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SSAOPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    
+    <script>
+        // Global variables
+        let scene, camera, renderer, controls;
+        let hydraulicModel = null;
+        let composer, ssaoPass;
+        
+        // DOM elements
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const container = document.getElementById('webgl-output');
+        
+        // Hotspot data with positions (properly scaled for 5x hydraulic model)
+        const hotspotData = [
+            {
+                name: "Pumps and motors",
+                position: { x: 3, y: -2, z: 5 },
+                title: "Pumps and motors",
+                description: "The hydraulic motors on the HPU are used to drive the submerged internal gear pumps and circulate the oil from the tank into the circuit"
+            },
+            {
+                name: "Heating Valve",
+                position: { x: -2, y: 3, z: 4 },
+                title: "Heating Valve",
+                description: "The heating system has two main components, a solenoid valve and a relief valve set at 240 bar. When the system functions as a heating circuit, it activates the solenoid valve and enables the flow through the relief valve to the tank. The relief valve opens at 240 bar and discharges until the pressure drops below 240 bar."
+            },
+            {
+                name: "Hydraulic manifold",
+                position: { x: 0, y: 5, z: -3 },
+                title: "Hydraulic manifold",
+                description: "The hydraulic manifold is an integrated unit with various valves that regulate the oil flow between pumps, brake calipers, and other components in a hydraulic system."
+            },
+            {
+                name: "Relief valve (Dump valve)",
+                position: { x: 4, y: 2, z: 1 },
+                title: "Relief valve (Dump valve)",
+                description: "The dump valves are used to regulate system pressure so that the pumps and motors can run continuously. This prevents excess wear on the motors, pumps and contactors"
+            },
+            {
+                name: "Inline Filter",
+                position: { x: -4, y: 1, z: -1 },
+                title: "Inline Filter",
+                description: "The function of an inline filter is to filter the entry of larger particles from the main pump."
+            },
+            {
+                name: "Heat exchanger",
+                position: { x: 1, y: 5, z: -4 },
+                title: "Heat exchanger",
+                description: "The heat exchanger transfers heat from the hot hydraulic oil on one side to the coolant on the other side by conduction."
+            }
+        ];
+
+        // Helper function to get hotspot vector (similar to wind turbine example)
+        function getHotspotVector(hotspot) {
+            return new THREE.Vector3(hotspot.position.x, hotspot.position.y, hotspot.position.z);
+        }
+        
+        // Create gradient background for studio effect
+        function createGradientBackground() {
+            // Create a large background sphere
+            const backgroundGeometry = new THREE.SphereGeometry(1000, 32, 32);
+            
+            // Create canvas for gradient
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Create vertical gradient (light gray at bottom, dark gray at top)
+            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+            gradient.addColorStop(0, '#4a5568'); // Dark gray at top
+            gradient.addColorStop(1, '#a0aec0'); // Light gray at bottom
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // Create texture from canvas
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            // Create material with gradient texture
+            const backgroundMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.BackSide // Render inside the sphere
+            });
+            
+            // Create background mesh
+            const backgroundMesh = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+            backgroundMesh.name = 'backgroundSphere';
+            
+            // Add to scene
+            scene.add(backgroundMesh);
+            
+            console.log('Gradient background created');
+        }
+        
+        // Setup 3-point studio lighting system
+        function setup3PointLighting() {
+            // Remove existing lights
+            const existingLights = scene.children.filter(child => child.isLight);
+            existingLights.forEach(light => scene.remove(light));
+            
+            // 1. KEY LIGHT - Main light source (scaled for larger model)
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            keyLight.position.set(100, 80, 100); // Scaled up for larger model
+            keyLight.castShadow = true;
+            
+            // Configure shadow properties for better quality
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.camera.near = 0.1;
+            keyLight.shadow.camera.far = 500;
+            keyLight.shadow.camera.left = -100;
+            keyLight.shadow.camera.right = 100;
+            keyLight.shadow.camera.top = 100;
+            keyLight.shadow.camera.bottom = -100;
+            keyLight.shadow.bias = -0.0001;
+            
+            keyLight.name = 'keyLight';
+            scene.add(keyLight);
+            
+            // 2. FILL LIGHT - Softens shadows from key light
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            fillLight.position.set(-60, 40, -60); // Scaled up for larger model
+            fillLight.name = 'fillLight';
+            scene.add(fillLight);
+            
+            // 3. RIM LIGHT - Separates subject from background
+            const rimLight = new THREE.DirectionalLight(0x87ceeb, 0.8);
+            rimLight.position.set(0, 120, -80); // Scaled up for larger model
+            rimLight.name = 'rimLight';
+            scene.add(rimLight);
+            
+            // 4. AMBIENT LIGHT - Overall scene illumination
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            ambientLight.name = 'ambientLight';
+            scene.add(ambientLight);
+            
+            // 5. HEMISPHERE LIGHT - Sky/ground lighting
+            const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x654321, 0.5);
+            hemisphereLight.position.set(0, 200, 0); // Scaled up for larger model
+            hemisphereLight.name = 'hemisphereLight';
+            scene.add(hemisphereLight);
+            
+            // 6. ACCENT LIGHTS - Subtle cinematic lighting (reduced intensity)
+            const accentLight1 = new THREE.PointLight(0x39b5eb, 0.3, 200); // Reduced intensity from 0.8 to 0.3
+            accentLight1.position.set(80, 60, 40);
+            accentLight1.name = 'accentLight1';
+            scene.add(accentLight1);
+            
+            const accentLight2 = new THREE.PointLight(0xff6b6b, 0.2, 150); // Reduced intensity from 0.6 to 0.2
+            accentLight2.position.set(-40, 80, -60);
+            accentLight2.name = 'accentLight2';
+            scene.add(accentLight2);
+            
+            // Removed animated accent lights to prevent floating blue elements
+            console.log('3-point studio lighting setup complete');
+        }
+        
+        // Setup post-processing with SSAO
+        function setupPostProcessing() {
+            try {
+                // Create composer
+                composer = new THREE.EffectComposer(renderer);
+                
+                // Add render pass
+                const renderPass = new THREE.RenderPass(scene, camera);
+                composer.addPass(renderPass);
+                
+                // Add SSAO pass
+                ssaoPass = new THREE.SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
+                ssaoPass.kernelRadius = 16;
+                ssaoPass.minDistance = 0.005;
+                ssaoPass.maxDistance = 0.1;
+                ssaoPass.output = THREE.SSAOPass.OUTPUT.Default;
+                composer.addPass(ssaoPass);
+                
+                // Add FXAA pass for antialiasing
+                const fxaaPass = new THREE.ShaderPass(THREE.FXAAShader);
+                fxaaPass.material.uniforms['resolution'].value.x = 1 / window.innerWidth;
+                fxaaPass.material.uniforms['resolution'].value.y = 1 / window.innerHeight;
+                composer.addPass(fxaaPass);
+                
+                console.log('Post-processing setup complete with SSAO');
+            } catch (error) {
+                console.warn('Post-processing setup failed, falling back to basic renderer:', error);
+                composer = null;
+                ssaoPass = null;
+            }
+        }
+        
+        // Initialize the 3D scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            
+            // Create gradient background for studio effect
+            createGradientBackground();
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(
+                70, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                2000
+            );
+            camera.position.set(50, 30, 50);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            container.appendChild(renderer.domElement);
+            
+            // Setup post-processing for SSAO
+            setupPostProcessing();
+            
+            // Setup controls
+            setupControls();
+            
+            // Setup 3-point studio lighting
+            setup3PointLighting();
+            
+            // Load the hydraulic systems model
+            loadHydraulicModel();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+        }
+        
+        function setupLighting() {
+            // Ambient light for general illumination
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            // Main directional light
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            mainLight.position.set(50, 50, 50);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            scene.add(mainLight);
+            
+            // Fill light from opposite side
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+            fillLight.position.set(-30, 20, -30);
+            scene.add(fillLight);
+            
+            // Point light for accent
+            const pointLight = new THREE.PointLight(0x39b5eb, 0.5, 100);
+            pointLight.position.set(0, 30, 0);
+            scene.add(pointLight);
+        }
+        
+        function createFloor() {
+            // Create circular floor geometry
+            const floorGeometry = new THREE.CircleGeometry(100, 64); // radius 100, 64 segments for smooth circle
+            
+            // Create floor material
+            const floorMaterial = new THREE.MeshLambertMaterial({
+                color: 0xcccccc,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            // Create floor mesh
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            
+            // Rotate floor to be horizontal (XZ plane)
+            floor.rotation.x = -Math.PI / 2;
+            
+            // Initial position (will be updated when model loads)
+            floor.position.y = -5;
+            
+            // Enable shadow receiving
+            floor.receiveShadow = true;
+            
+            // Give floor a name for later reference
+            floor.name = 'hydraulicFloor';
+            
+            // Add floor to scene
+            scene.add(floor);
+        }
+        
+        function setupControls() {
+            // Create orbit controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            
+            // Configure controls
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enablePan = false; // Disable pan as requested
+            controls.enableZoom = false; // Disable zoom as requested
+            controls.enableRotate = true;
+            
+            // Set rotation limits - remove limits for inside view
+            controls.minPolarAngle = 0; 
+            controls.maxPolarAngle = Math.PI; // Allow full rotation for inside view
+            
+            // Set initial target (will be updated when model loads)
+            controls.target.set(0, 0, 0);
+            
+            // Auto-rotate (optional - can be disabled)
+            controls.autoRotate = false;
+            controls.autoRotateSpeed = 0.5;
+        }
+        
+        function loadHydraulicModel() {
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load(
+                'hydraulicsystems.glb',
+                function (gltf) {
+                    hydraulicModel = gltf.scene;
+                    
+                    // Scale the model if needed
+                    hydraulicModel.scale.set(1, 1, 1);
+                    
+                    // Position the model
+                    hydraulicModel.position.set(0, 0, 0);
+                    
+                    // Enable shadows on the model
+                    hydraulicModel.traverse(function (child) {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            
+                            // Enable environment mapping for reflective materials
+                            if (child.material) {
+                                child.material.needsUpdate = true;
+                                
+                                // Enable environment mapping for standard/physical materials
+                                if (child.material.isStandardMaterial || child.material.isPhysicalMaterial) {
+                                    child.material.envMapIntensity = 0.5;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Add model to scene
+                    scene.add(hydraulicModel);
+                    
+                    // Find HotspotCollisions mesh and position floor at its location
+                    let floorPosition = new THREE.Vector3(0, -5, 0); // Default position
+                    hydraulicModel.traverse(function(child) {
+                        if (child.name === "HotspotCollisions") {
+                            // Get the world position of this mesh
+                            const meshBox = new THREE.Box3().setFromObject(child);
+                            floorPosition = meshBox.getCenter(new THREE.Vector3());
+                            floorPosition.y = floorPosition.y - 5; // Slightly below the mesh
+                            console.log('Found HotspotCollisions mesh, positioning floor at:', floorPosition);
+                        }
+                    });
+                    
+                    // Update floor position
+                    const floor = scene.getObjectByName('hydraulicFloor');
+                    if (floor) {
+                        floor.position.copy(floorPosition);
+                    }
+                    
+                    // Calculate bounding box to center the camera
+                    const box = new THREE.Box3().setFromObject(hydraulicModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    
+                    // Find the MatChangeGroup7_10 mesh and set it as orbit point
+                    let orbitTarget = center; // Default to center
+                    hydraulicModel.traverse(function(child) {
+                        if (child.name === "MatChangeGroup7_10") {
+                            // Get the world position of this mesh
+                            const meshBox = new THREE.Box3().setFromObject(child);
+                            orbitTarget = meshBox.getCenter(new THREE.Vector3());
+                            console.log('Found MatChangeGroup7_10 mesh, setting as orbit point:', orbitTarget);
+                        }
+                    });
+                    
+                    // Update controls target to the specific mesh or model center
+                    controls.target.copy(orbitTarget);
+                    
+                    // Position camera away from the orbit point
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const distance = maxDim * 0.15; // Brought camera much much closer from 0.3 to 0.15
+                    camera.position.set(
+                        orbitTarget.x + distance * 0.8,
+                        orbitTarget.y + distance * 0.3,
+                        orbitTarget.z + distance * 0.8
+                    );
+                    
+                    // Update controls
+                    controls.update();
+                    
+                    // Hide loading overlay
+                    loadingOverlay.style.display = 'none';
+                    
+                    console.log('Hydraulic systems model loaded successfully!');
+                },
+                function (progress) {
+                    // Loading progress
+                    const percent = (progress.loaded / progress.total) * 100;
+                    console.log('Loading progress: ' + percent + '%');
+                },
+                function (error) {
+                    console.error('Error loading hydraulic systems model:', error);
+                    loadingOverlay.innerHTML = `
+                        <div class="loading-spinner" style="border-color: #ef4444; border-top-color: transparent;"></div>
+                        <p class="welcome-text" style="color: #ef4444;">Error loading model. Please check console for details.</p>
+                    `;
+                }
+            );
+        }
+        
+        function onWindowResize() {
+            // Update camera aspect ratio
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            
+            // Update renderer size
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            // Update post-processing composer if available
+            if (composer) {
+                composer.setSize(window.innerWidth, window.innerHeight);
+                
+                // Update SSAO pass
+                if (ssaoPass) {
+                    ssaoPass.setSize(window.innerWidth, window.innerHeight);
+                }
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update controls
+            if (controls) {
+                controls.update();
+            }
+            
+            // Render the scene with post-processing or basic renderer
+            if (composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        // Initialize when page loads
+        window.onload = function() {
+            init();
+            animate();
+        };
+        
+        // Add some helper functions for future use
+        function resetCameraPosition() {
+            if (hydraulicModel) {
+                const box = new THREE.Box3().setFromObject(hydraulicModel);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                // Find the MatChangeGroup7_10 mesh and set it as orbit point
+                let orbitTarget = center; // Default to center
+                hydraulicModel.traverse(function(child) {
+                    if (child.name === "MatChangeGroup7_10") {
+                        const meshBox = new THREE.Box3().setFromObject(child);
+                        orbitTarget = meshBox.getCenter(new THREE.Vector3());
+                    }
+                });
+                
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const distance = maxDim * 0.15; // Brought camera much much closer from 0.3 to 0.15
+                
+                camera.position.set(
+                    orbitTarget.x + distance * 0.8,
+                    orbitTarget.y + distance * 0.3,
+                    orbitTarget.z + distance * 0.8
+                );
+                controls.target.copy(orbitTarget);
+                controls.update();
+            }
+        }
+        
+        // Expose useful functions to window for debugging
+        window.resetCamera = resetCameraPosition;
+        window.toggleAutoRotate = function() {
+            controls.autoRotate = !controls.autoRotate;
+        };
+        
+        // Ground plane manual positioning functions
+        window.moveFloor = function(x, y, z) {
+            const floor = scene.getObjectByName('hydraulicFloor');
+            if (floor) {
+                if (x !== undefined) floor.position.x = x;
+                if (y !== undefined) floor.position.y = y;
+                if (z !== undefined) floor.position.z = z;
+                console.log('Floor position updated to:', floor.position);
+            } else {
+                console.log('Floor not found');
+            }
+        };
+        
+        window.moveFloorRelative = function(deltaX, deltaY, deltaZ) {
+            const floor = scene.getObjectByName('hydraulicFloor');
+            if (floor) {
+                if (deltaX !== undefined) floor.position.x += deltaX;
+                if (deltaY !== undefined) floor.position.y += deltaY;
+                if (deltaZ !== undefined) floor.position.z += deltaZ;
+                console.log('Floor position updated to:', floor.position);
+            } else {
+                console.log('Floor not found');
+            }
+        };
+        
+        window.getFloorPosition = function() {
+            const floor = scene.getObjectByName('hydraulicFloor');
+            if (floor) {
+                console.log('Current floor position:', floor.position);
+                return floor.position;
+            } else {
+                console.log('Floor not found');
+                return null;
+            }
+        };
+        
+        window.resetFloorPosition = function() {
+            const floor = scene.getObjectByName('hydraulicFloor');
+            if (floor) {
+                floor.position.set(0, -5, 0);
+                console.log('Floor position reset to:', floor.position);
+            } else {
+                console.log('Floor not found');
+            }
+        };
+        
+        // Helper functions for easy positioning
+        window.floorUp = function(amount = 1) { window.moveFloorRelative(0, amount, 0); };
+        window.floorDown = function(amount = 1) { window.moveFloorRelative(0, -amount, 0); };
+        window.floorLeft = function(amount = 1) { window.moveFloorRelative(-amount, 0, 0); };
+        window.floorRight = function(amount = 1) { window.moveFloorRelative(amount, 0, 0); };
+        window.floorForward = function(amount = 1) { window.moveFloorRelative(0, 0, -amount); };
+        window.floorBackward = function(amount = 1) { window.moveFloorRelative(0, 0, amount); };
+        
+        // DOM-based hotspot system
+        function createHotspots() {
+            // Remove existing hotspot markers
+            allHotspotDomMarkers.forEach(marker => {
+                if (marker.parentNode) {
+                    marker.parentNode.removeChild(marker);
+                }
+            });
+            allHotspotDomMarkers = [];
+            
+            // Create DOM markers for each hotspot
+            hotspotData.forEach((hotspot, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'hotspot-dom-marker';
+                marker.id = `hotspot-${index}`;
+                marker.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <div class="hotspot-tooltip">${hotspot.name}</div>
+                `;
+                
+                // Add click handler
+                marker.addEventListener('click', () => {
+                    showHotspotPopup(hotspot);
+                });
+                
+                // Add hover effects
+                marker.addEventListener('mouseenter', () => {
+                    marker.classList.add('active');
+                });
+                
+                marker.addEventListener('mouseleave', () => {
+                    marker.classList.remove('active');
+                });
+                
+                document.body.appendChild(marker);
+                allHotspotDomMarkers.push(marker);
+            });
+            
+            console.log('DOM hotspots created:', allHotspotDomMarkers.length);
+        }
+        
+        function updateHotspotPositions() {
+            if (!hydraulicModel || allHotspotDomMarkers.length === 0) return;
+            
+            hotspotData.forEach((hotspot, index) => {
+                const marker = allHotspotDomMarkers[index];
+                if (!marker) return;
+                
+                // Get 3D position
+                const position3D = getHotspotVector(hotspot);
+                
+                // Apply model's world matrix to get actual world position
+                const worldPosition = position3D.clone();
+                hydraulicModel.updateMatrixWorld();
+                worldPosition.applyMatrix4(hydraulicModel.matrixWorld);
+                
+                // Project to screen space
+                const screenPosition = worldPosition.clone();
+                screenPosition.project(camera);
+                
+                // Check if hotspot is in front of camera
+                const isVisible = screenPosition.z < 1;
+                
+                if (isVisible) {
+                    // Convert to screen coordinates
+                    const x = (screenPosition.x + 1) * window.innerWidth / 2;
+                    const y = (-screenPosition.y + 1) * window.innerHeight / 2;
+                    
+                    // Calculate distance from camera for scaling
+                    const distanceFromCamera = camera.position.distanceTo(worldPosition);
+                    const scale = Math.max(0.5, Math.min(2.0, 50 / distanceFromCamera));
+                    
+                    // Update marker position and scale
+                    marker.style.left = `${x}px`;
+                    marker.style.top = `${y}px`;
+                    marker.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                    marker.style.display = 'block';
+                } else {
+                    marker.style.display = 'none';
+                }
+            });
+        }
+        
+        function showHotspotPopup(hotspot) {
+            // Update popup content
+            popupTitle.textContent = hotspot.title;
+            popupDesc.textContent = hotspot.description;
+            
+            // Show popup
+            popup.style.display = 'block';
+            
+            // Position popup at center of screen
+            const rect = popup.getBoundingClientRect();
+            popup.style.left = `${(window.innerWidth - rect.width) / 2}px`;
+            popup.style.top = `${(window.innerHeight - rect.height) / 2}px`;
+        }
+        
+        function hideHotspotPopup() {
+            popup.style.display = 'none';
+        }
+        
+        // Debugging and utility functions
+        function showHotspotPositions() {
+            console.log('Current hotspot positions:');
+            hotspotData.forEach((hotspot, index) => {
+                console.log(`${index + 1}. ${hotspot.name}: (${hotspot.position.x}, ${hotspot.position.y}, ${hotspot.position.z})`);
+            });
+        }
+        
+        function adjustHotspotPosition(index, x, y, z) {
+            if (index >= 0 && index < hotspotData.length) {
+                const hotspot = hotspotData[index];
+                if (x !== undefined) hotspot.position.x = x;
+                if (y !== undefined) hotspot.position.y = y;
+                if (z !== undefined) hotspot.position.z = z;
+                console.log(`Updated hotspot ${index + 1} (${hotspot.name}) to: (${hotspot.position.x}, ${hotspot.position.y}, ${hotspot.position.z})`);
+            } else {
+                console.error('Invalid hotspot index:', index);
+            }
+        }
+        
+        function listHotspots() {
+            console.log('Available hotspots:');
+            hotspotData.forEach((hotspot, index) => {
+                console.log(`${index}: ${hotspot.name} - "${hotspot.title}"`);
+            });
+        }
+        
+        function testHotspotVisibility() {
+            console.log('Testing hotspot visibility:');
+            hotspotData.forEach((hotspot, index) => {
+                const position3D = getHotspotVector(hotspot);
+                const worldPosition = position3D.clone();
+                hydraulicModel.updateMatrixWorld();
+                worldPosition.applyMatrix4(hydraulicModel.matrixWorld);
+                
+                const screenPosition = worldPosition.clone();
+                screenPosition.project(camera);
+                
+                const isVisible = screenPosition.z < 1;
+                const x = (screenPosition.x + 1) * window.innerWidth / 2;
+                const y = (-screenPosition.y + 1) * window.innerHeight / 2;
+                
+                console.log(`${index + 1}. ${hotspot.name}: ${isVisible ? 'VISIBLE' : 'HIDDEN'} at screen (${x.toFixed(1)}, ${y.toFixed(1)})`);
+            });
+        }
+        
+        // Functions to work with mesh/object names
+        function listAllMeshNames() {
+            if (!hydraulicModel) {
+                console.log('Model not loaded yet');
+                return;
+            }
+            
+            console.log('All mesh names in the model:');
+            const meshNames = [];
+            hydraulicModel.traverse(function(child) {
+                if (child.isMesh || child.isObject3D) {
+                    if (child.name) {
+                        meshNames.push(child.name);
+                    }
+                }
+            });
+            
+            meshNames.sort();
+            meshNames.forEach((name, index) => {
+                console.log(`${index + 1}. ${name}`);
+            });
+            
+            return meshNames;
+        }
+        
+        function findMeshByName(searchName) {
+            if (!hydraulicModel) {
+                console.log('Model not loaded yet');
+                return null;
+            }
+            
+            let foundMesh = null;
+            hydraulicModel.traverse(function(child) {
+                if (child.name && child.name.toLowerCase().includes(searchName.toLowerCase())) {
+                    foundMesh = child;
+                    return; // Stop traversing
+                }
+            });
+            
+            if (foundMesh) {
+                console.log(`Found mesh: ${foundMesh.name}`);
+                console.log('Position:', foundMesh.position);
+                console.log('Type:', foundMesh.type);
+                return foundMesh;
+            } else {
+                console.log(`No mesh found containing "${searchName}"`);
+                return null;
+            }
+        }
+        
+        function listMeshesContaining(searchTerm) {
+            if (!hydraulicModel) {
+                console.log('Model not loaded yet');
+                return [];
+            }
+            
+            const matches = [];
+            hydraulicModel.traverse(function(child) {
+                if (child.name && child.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+                    matches.push({
+                        name: child.name,
+                        type: child.type,
+                        position: child.position.clone()
+                    });
+                }
+            });
+            
+            console.log(`Found ${matches.length} meshes containing "${searchTerm}":`);
+            matches.forEach((match, index) => {
+                console.log(`${index + 1}. ${match.name} (${match.type}) at (${match.position.x}, ${match.position.y}, ${match.position.z})`);
+            });
+            
+            return matches;
+        }
+        
+        function fixHotspotToMesh(hotspotIndex, meshName) {
+            if (!hydraulicModel) {
+                console.log('Model not loaded yet');
+                return false;
+            }
+            
+            if (hotspotIndex < 0 || hotspotIndex >= hotspotData.length) {
+                console.error('Invalid hotspot index:', hotspotIndex);
+                return false;
+            }
+            
+            const mesh = findMeshByName(meshName);
+            if (!mesh) {
+                console.error(`Mesh "${meshName}" not found`);
+                return false;
+            }
+            
+            // Get the world position of the mesh
+            const meshBox = new THREE.Box3().setFromObject(mesh);
+            const meshCenter = meshBox.getCenter(new THREE.Vector3());
+            
+            // Convert to model-relative coordinates
+            const modelMatrix = hydraulicModel.matrixWorld.clone().invert();
+            const relativePosition = meshCenter.clone().applyMatrix4(modelMatrix);
+            
+            // Update hotspot position
+            const hotspot = hotspotData[hotspotIndex];
+            hotspot.position.x = relativePosition.x;
+            hotspot.position.y = relativePosition.y;
+            hotspot.position.z = relativePosition.z;
+            
+            console.log(`Fixed hotspot ${hotspotIndex} "${hotspot.name}" to mesh "${mesh.name}" at position (${relativePosition.x}, ${relativePosition.y}, ${relativePosition.z})`);
+            return true;
+        }
+        
+        // Initialize hotspots after model loads
+        function initializeHotspots() {
+            createHotspots();
+            
+            // Try to fix hotspots to their corresponding nulls/meshes for better positioning
+            const hotspotMeshMap = [
+                { hotspotIndex: 0, meshName: "h_pumps_motors" },    // Pumps and motors
+                { hotspotIndex: 1, meshName: "h_heating_valve" },   // Heating Valve
+                { hotspotIndex: 2, meshName: "h_manifold" },        // Hydraulic manifold
+                { hotspotIndex: 3, meshName: "h_relief_valve" },    // Relief valve
+                { hotspotIndex: 4, meshName: "h_inline_filter" },   // Inline Filter
+                { hotspotIndex: 5, meshName: "h_heat_exchanger" }   // Heat exchanger
+            ];
+            
+            // Try to fix each hotspot to its corresponding mesh
+            hotspotMeshMap.forEach(mapping => {
+                const success = fixHotspotToMesh(mapping.hotspotIndex, mapping.meshName);
+                if (!success) {
+                    console.log(`Could not fix hotspot ${mapping.hotspotIndex} to mesh ${mapping.meshName}, using default position`);
+                }
+            });
+            
+            updateHotspotPositions();
+        }
+        
+        // Popup close handler
+        popupCloseBtn.addEventListener('click', hideHotspotPopup);
+        
+        // Close popup when clicking outside
+        popup.addEventListener('click', function(e) {
+            if (e.target === popup) {
+                hideHotspotPopup();
+            }
+        });
+        
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideHotspotPopup();
+            }
+        });
+        
+        // Expose debugging functions to window for easy access
+        window.showHotspotPositions = showHotspotPositions;
+        window.adjustHotspotPosition = adjustHotspotPosition;
+        window.listHotspots = listHotspots;
+        window.testHotspotVisibility = testHotspotVisibility;
+        window.listAllMeshNames = listAllMeshNames;
+        window.findMeshByName = findMeshByName;
+        window.listMeshesContaining = listMeshesContaining;
+        window.fixHotspotToMesh = fixHotspotToMesh;
+        window.initializeHotspots = initializeHotspots;
+    </script>
+</body>
+</html>
